@@ -10,9 +10,11 @@ import uvicorn
 from core.config import get_settings
 from core.database import init_db
 from core.redis_conn import close_redis
+from core.logging_config import setup_logging
 from api import auth, document, chat, session
 
 settings = get_settings()
+logger = setup_logging("main")
 
 
 @asynccontextmanager
@@ -27,10 +29,10 @@ async def lifespan(app: FastAPI):
     - 关闭 Redis 连接
     """
     await init_db()
-    print("[OK] Database initialized")
+    logger.info("Database initialized")
     yield
     await close_redis()
-    print("[OK] Redis closed")
+    logger.info("Redis closed")
 
 
 # 创建 FastAPI 应用

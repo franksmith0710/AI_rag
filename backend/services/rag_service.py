@@ -3,15 +3,20 @@ RAG 检索与问答服务模块
 负责：1) 混合检索 (向量+BM25) 2) 重排序 3) LLM 答案生成
 核心流程：用户问题 → 检索 → 重排序 → 生成答案
 """
+import os
+import logging
 from typing import List, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from openai import AsyncOpenAI
+from langchain_openai import ChatOpenAI
 from rank_bm25 import BM25Okapi
 import jieba
 
 from models.db_models import DocumentChunk, Session as SessionModel, Message
 from core.config import get_settings
+from core.logging_config import setup_logging
+
+logger = setup_logging("rag_service")
 from core.chroma_conn import similarity_search
 from utils.rerank import rerank_documents
 
@@ -20,13 +25,16 @@ settings = get_settings()
 llm_client = None
 
 
-def get_llm_client() -> AsyncOpenAI:
-    """获取 DeepSeek LLM 客户端 (单例)"""
+def get_llm_client() -> ChatOpenAI:
+    """获取 DeepSeek LLM 客户端 (单例, LangChain 封装)"""
     global llm_client
     if llm_client is None:
-        llm_client = AsyncOpenAI(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
+        llm_client = ChatOpenAI(
+            model=settings.deepseek_model,
+            openai_api_key=settings.deepseek_api_key,
+            openai_api_base=settings.deepseek_base_url,
+            temperature=0.7,
+            max_tokens=1000
         )
     return llm_client
 
@@ -62,7 +70,7 @@ async def vector_search(query: str, tenant_id: int, top_k: int = 10) -> List[Dic
         return documents
 
     except Exception as e:
-        print(f"向量检索失败: {e}")
+        logger.error(f"向量检索失败: {e}")
         return []
 
 
@@ -127,7 +135,7 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
         return results[:top_k]
 
     except Exception as e:
-        print(f"BM25 检索失败: {e}")
+        logger.error(f"BM25 检索失败: {e}")
         return []
 
 
@@ -255,18 +263,14 @@ async def generate_answer(
 回答:"""
 
     try:
-        client = get_llm_client()
-        response = await client.chat.completions.create(
-            model=settings.deepseek_model,
-            messages=[
-                {"role": "system", "content": "你是一个专业的企业知识库问答助手。"},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,  # 适度创造性
-            max_tokens=1000
-        )
-
-        answer = response.choices[0].message.content
+        llm = get_llm_client()
+        from langchain.schema import HumanMessage, SystemMessage
+        messages = [
+            SystemMessage(content="你是一个专业的企业知识库问答助手。"),
+            HumanMessage(content=prompt)
+        ]
+        response = await llm.ainvoke(messages)
+        answer = response.content
 
         # 构建参考来源
         sources = []
@@ -280,7 +284,7 @@ async def generate_answer(
         return answer, sources
 
     except Exception as e:
-        print(f"LLM 生成失败: {e}")
+        logger.error(f"LLM 生成失败: {e}")
         return f"生成答案时出错: {str(e)}", []
 
 

@@ -74,8 +74,8 @@
           v-model="inputMessage"
           type="textarea"
           :rows="3"
-          placeholder="请输入问题，按Enter发送..."
-          @keydown.enter.ctrl="sendMessage"
+          placeholder="请输入问题，按 Enter 发送..."
+          @keydown.enter="sendMessage"
           :disabled="!currentSessionId || loading"
         />
         <el-button

@@ -4,12 +4,15 @@ Chroma 向量数据库连接模块
 Chroma 是一个轻量级的本地向量数据库，适合开发环境
 """
 import os
+import logging
 from typing import Optional, List, Dict, Any
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
 from .config import get_settings
+from .logging_config import setup_logging
 import hashlib
 
+logger = setup_logging("chroma_conn")
 settings = get_settings()
 
 _chroma_store: Optional[Chroma] = None  # Chroma 客户端单例
@@ -18,18 +21,17 @@ _embedding_model = None  # BGE 嵌入模型单例
 
 def get_embedding_model():
     """
-    获取 BGE 嵌入模型
-    使用单例模式避免重复加载模型
+    获取 Ollama Embedding 模型
+    使用本地 Ollama 服务
 
     Returns:
-        HuggingFaceBgeEmbeddings 模型实例
+        OllamaEmbeddings 模型实例
     """
     global _embedding_model
     if _embedding_model is None:
-        _embedding_model = HuggingFaceBgeEmbeddings(
-            model_name=settings.bge_model_path,  # 模型路径
-            model_kwargs={'device': 'cpu'},  # 使用 CPU
-            encode_kwargs={'normalize_embeddings': True}  # L2 归一化
+        _embedding_model = OllamaEmbeddings(
+            model=settings.ollama_embed_model,
+            base_url=settings.ollama_host
         )
     return _embedding_model
 
@@ -157,7 +159,7 @@ def delete_documents(tenant_id: int, document_id: int):
         collection.delete(where={"document_id": str(document_id)})
         collection.persist()
     except Exception as e:
-        print(f"删除文档向量失败: {e}")
+        logger.error(f"删除文档向量失败: {e}")
 
 
 def get_embedding_dim() -> int:

@@ -6,6 +6,7 @@
 import asyncio
 import sys
 import os
+import logging
 
 # 将 backend 目录加入 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -13,6 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core.database import async_engine, Base, async_session_maker
 from models.db_models import Tenant, User
 from services.auth_service import get_password_hash
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 async def init_default_data():
@@ -32,7 +36,7 @@ async def init_default_data():
             tenant = Tenant(name="Default Tenant")
             session.add(tenant)
             await session.flush()
-            print("[OK] Created default tenant")
+            logger.info("Created default tenant")
 
         # 检查是否已有用户
         result = await session.execute(select(User).where(User.username == "admin"))
@@ -57,10 +61,10 @@ async def init_default_data():
                     role=user_data["role"]
                 )
                 session.add(user)
-                print(f"[OK] Created {user_data['desc']}: {user_data['username']} / {user_data['password']}")
+                logger.info(f"Created {user_data['desc']}: {user_data['username']} / {user_data['password']}")
 
         await session.commit()
-        print("\n[OK] Initialization complete!")
+        logger.info("Initialization complete!")
 
 
 async def main():
@@ -69,12 +73,12 @@ async def main():
     1. 创建所有数据库表
     2. 初始化默认数据
     """
-    print("开始初始化数据库...")
+    logger.info("开始初始化数据库...")
 
     # 创建表结构
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("[OK] Database tables created")
+    logger.info("Database tables created")
 
     # 初始化默认数据
     await init_default_data()

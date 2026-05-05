@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     bge_model_path: str = "./models/bge-m3"  # BGE 向量模型路径
     rerank_model_path: str = "./models/bge-reranker-base"  # BGE 重排序模型路径
 
+    # ==================== Ollama 配置 ====================
+    ollama_host: str = "http://localhost:11434"  # Ollama 服务地址
+    ollama_embed_model: str = "bge-m3"  # Ollama Embedding 模型名称
+
     # ==================== JWT 配置 ====================
     jwt_secret_key: str = "your-secret-key-change-in-production"  # JWT 密钥
     jwt_algorithm: str = "HS256"  # JWT 算法

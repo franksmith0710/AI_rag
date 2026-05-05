@@ -4,6 +4,7 @@
 支持 PDF/Word/TXT 格式文档处理
 """
 import os
+import logging
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -12,7 +13,9 @@ from models.schemas import DocumentResponse, DocumentListResponse
 from utils.splitter import split_text
 from core.chroma_conn import add_documents, delete_documents
 from core.config import get_settings
+from core.logging_config import setup_logging
 
+logger = setup_logging("doc_service")
 settings = get_settings()
 
 
@@ -110,7 +113,7 @@ async def process_document(
             metadatas=metadatas
         )
     except Exception as e:
-        print(f"向量库存储失败: {e}")
+        logger.error(f"向量库存储失败: {e}")
         return False
 
     return True
@@ -176,14 +179,14 @@ async def delete_document(db: AsyncSession, document_id: int, tenant_id: int) ->
     try:
         delete_documents(tenant_id, document_id)
     except Exception as e:
-        print(f"删除向量失败: {e}")
+        logger.error(f"删除向量失败: {e}")
 
     # 删除物理文件
     if file_path and os.path.exists(file_path):
         try:
             os.remove(file_path)
         except Exception as e:
-            print(f"删除物理文件失败: {e}")
+            logger.error(f"删除物理文件失败: {e}")
 
     # 删除文档记录
     await db.delete(doc)
@@ -221,7 +224,7 @@ def extract_text_from_file(file_path: str, file_type: str) -> str:
                 text = f.read()
 
     except Exception as e:
-        print(f"文本提取失败: {e}")
+        logger.error(f"文本提取失败: {e}")
         raise
 
     return text

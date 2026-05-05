@@ -5,9 +5,11 @@ Redis 连接模块
 """
 import redis.asyncio as redis
 from .config import get_settings
+from .logging_config import setup_logging
 from typing import Optional
 import json
 
+logger = setup_logging("redis_conn")
 settings = get_settings()
 
 redis_client: Optional[redis.Redis] = None  # Redis 客户端单例
@@ -40,7 +42,7 @@ async def get_redis() -> Optional[redis.Redis]:
             await redis_client.ping()
         return redis_client
     except Exception as e:
-        print(f"Redis 连接失败: {e}，使用内存缓存")
+        logger.warning(f"Redis 连接失败: {e}，使用内存缓存")
         return None
 
 
