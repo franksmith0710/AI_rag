@@ -29,9 +29,11 @@ def get_embedding_model():
     """
     global _embedding_model
     if _embedding_model is None:
+        # 优先使用配置，如果没有则使用本地默认
+        base_url = settings.ollama_host if settings.ollama_host else "http://127.0.0.1:11434"
         _embedding_model = OllamaEmbeddings(
             model=settings.ollama_embed_model,
-            base_url=settings.ollama_host
+            base_url=base_url
         )
     return _embedding_model
 

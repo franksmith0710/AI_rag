@@ -33,7 +33,7 @@ python-dotenv==1.0.1
 # LLM
 openai==1.57.4
 langchain-openai>=0.2.0
-langsmith>=2.0.0
+langsmith>=0.1.0
 
 # Utils
 pydantic==2.10.3

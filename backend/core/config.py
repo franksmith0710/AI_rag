@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     rerank_model_path: str = "./models/bge-reranker-base"  # BGE 重排序模型路径
 
     # ==================== Ollama 配置 ====================
-    ollama_host: str = "http://localhost:11434"  # Ollama 服务地址
+    ollama_host: str = ""  # Ollama 服务地址，优先使用环境变量，为空时使用默认值
     ollama_embed_model: str = "bge-m3"  # Ollama Embedding 模型名称
 
     # ==================== JWT 配置 ====================
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     class Config:
-        env_file = ".env"  # 从 .env 文件加载环境变量
+        env_file = "../.env"  # 从项目根目录的 .env 文件加载环境变量
         extra = "ignore"  # 忽略额外字段
 
 

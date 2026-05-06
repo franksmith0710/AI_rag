@@ -2,13 +2,18 @@
 RAG 检索与问答服务模块
 负责：1) 混合检索 (向量+BM25) 2) 重排序 3) LLM 答案生成
 核心流程：用户问题 → 检索 → 重排序 → 生成答案
+支持结构化 JSON 输出
 """
 import os
+import json
 import logging
 from typing import List, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.output_parsers import Pydantic OutputParser
+from pydantic import BaseModel, Field
 from rank_bm25 import BM25Okapi
 import jieba
 
@@ -29,12 +34,15 @@ def get_llm_client() -> ChatOpenAI:
     """获取 DeepSeek LLM 客户端 (单例, LangChain 封装)"""
     global llm_client
     if llm_client is None:
+        from langchain_openai import ChatOpenAI
         llm_client = ChatOpenAI(
-            model=settings.deepseek_model,
-            openai_api_key=settings.deepseek_api_key,
-            openai_api_base=settings.deepseek_base_url,
+            model="deepseek-chat",
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url + "/v1",
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=1000,
+            http_client=None,
+            timeout=60
         )
     return llm_client
 
@@ -196,18 +204,8 @@ async def rerank_results(query: str, documents: List[Dict[str, Any]], top_k: int
     if not documents:
         return []
 
-    texts = [doc["text"] for doc in documents]
-    reranked = rerank_documents(query, texts, top_k=top_k)
-
-    results = []
-    for idx, score in reranked:
-        doc = documents[idx]
-        results.append({
-            **doc,
-            "rerank_score": float(score)
-        })
-
-    return results
+    # 临时跳过 Rerank，直接返回原始结果（等模型下载后再启用）
+    return documents[:top_k]
 
 
 async def generate_answer(
@@ -215,64 +213,51 @@ async def generate_answer(
     context_chunks: List[Dict[str, Any]],
     conversation_history: List[Dict[str, str]]
 ) -> Tuple[str, List[Dict[str, Any]]]:
-    """
-    使用 LLM 生成答案
-    将检索到的文档作为上下文，结合对话历史生成答案
-
-    Args:
-        query: 用户问题
-        context_chunks: 检索到的文档片段
-        conversation_history: 对话历史 (最近 10 条)
-
-    Returns:
-        (答案文本, 参考来源列表)
-    """
     if not context_chunks:
-        return "抱歉，我没有找到相关的文档来回答您的问题。", []
+        return "未找到相关内容。", []
 
-    # 构建上下文
+    # 拼接参考资料
     context_text = "\n\n".join([
-        f"[文档{i+1}]\n{chunk['text']}"
+        f"【参考{i+1}】{chunk['text']}"
         for i, chunk in enumerate(context_chunks)
     ])
 
-    # 构建对话历史
-    history_text = ""
-    if conversation_history:
-        history_text = "对话历史:\n" + "\n".join([
-            f"{msg['role']}: {msg['content']}"
-            for msg in conversation_history[-5:]  # 最近 5 轮
-        ])
+    # 超级干净、强制格式的 Prompt（模型必听）
+    prompt = f"""请严格按照文档回答，**只输出答案，不要多余解释、不要开场白、不要结尾客套话**。
 
-    # 构建 Prompt
-    prompt = f"""你是一个专业的企业知识库问答助手。请根据以下参考文档回答用户的问题。
+【格式强制规则】
+- 用 ## 做一级标题
+- 用 - 列要点
+- 数字、等级、比例用表格
+- 段落之间空一行
+- 禁止乱加空格
+- 禁止重复内容
+- 禁止废话
 
-{history_text}
-
-参考文档:
+参考资料：
 {context_text}
 
-用户问题: {query}
+用户问题：{query}
 
-要求:
-1. 只根据参考文档回答，不要编造信息
-2. 如果文档中没有相关信息，请明确告知用户
-3. 回答要准确、简洁、有条理
-4. 如果需要，可以引用文档内容
-
-回答:"""
+输出答案：
+"""
 
     try:
         llm = get_llm_client()
-        from langchain.schema import HumanMessage, SystemMessage
+        from langchain_core.messages import HumanMessage, SystemMessage
         messages = [
-            SystemMessage(content="你是一个专业的企业知识库问答助手。"),
+            SystemMessage(content="你是简洁、专业、格式严格整齐的企业知识库助手。只输出答案，无多余内容。"),
             HumanMessage(content=prompt)
         ]
-        response = await llm.ainvoke(messages)
-        answer = response.content
 
-        # 构建参考来源
+        response = await llm.ainvoke(messages)
+        answer = response.content.strip()
+
+        # 清理多余空行、多余空格（最终保险）
+        import re
+        answer = re.sub(r'\n{3,}', '\n\n', answer)
+        answer = re.sub(r' +', ' ', answer)
+
         sources = []
         for chunk in context_chunks[:3]:
             sources.append({
@@ -284,8 +269,8 @@ async def generate_answer(
         return answer, sources
 
     except Exception as e:
-        logger.error(f"LLM 生成失败: {e}")
-        return f"生成答案时出错: {str(e)}", []
+        logger.error(f"LLM生成失败: {e}")
+        return "服务暂时异常，请稍后再试。", []
 
 
 async def chat_with_rag(
@@ -334,3 +319,151 @@ async def chat_with_rag(
     answer, sources = await generate_answer(query, reranked_results, conversation_history)
 
     return answer, sources
+
+
+async def stream_chat(
+    query: str,
+    session_id: int,
+    tenant_id: int,
+    db: AsyncSession
+):
+    """
+    流式问答
+    逐块返回回答内容
+    """
+    from sqlalchemy import select
+    from models.db_models import Session as SessionModel, Message
+    
+    # 获取会话
+    session_result = await db.execute(select(SessionModel).where(SessionModel.id == session_id))
+    session = session_result.scalar_one_or_none()
+
+    if not session:
+        yield {"answer": "会话不存在"}
+        return
+
+    # 获取历史消息
+    messages_result = await db.execute(
+        select(Message).where(Message.session_id == session_id).order_by(Message.created_at)
+    )
+    messages = list(messages_result.scalars().all())
+
+    conversation_history = [
+        {"role": msg.role, "content": msg.content}
+        for msg in messages[-10:]
+    ]
+
+    # 检索
+    search_results = await hybrid_search(query, tenant_id, db, top_k=10)
+
+    if not search_results:
+        yield {"answer": "未找到相关文档，请先上传文档到知识库。", "sources": []}
+        return
+
+    # 重排序
+    reranked_results = await rerank_results(query, search_results, top_k=5)
+
+    # 构建上下文
+    context_text = "\n\n".join([
+        f"[文档{i+1}]\n{chunk['text']}"
+        for i, chunk in enumerate(reranked_results)
+    ])
+
+    history_text = ""
+    if conversation_history:
+        history_text = "对话历史:\n" + "\n".join([
+            f"{msg['role']}: {msg['content']}"
+            for msg in conversation_history[-5:]
+        ])
+
+    prompt = f"""你是一个专业的企业知识库问答助手。请根据以下参考文档回答用户的问题。
+
+{history_text}
+
+参考文档:
+{context_text}
+
+用户问题: {query}
+
+请按以下 JSON 格式输出回答（必须是合法的 JSON，不要包含其他内容）:
+{{
+    "answer": "一句话简短的结论或回答",
+    "sections": [
+        {{
+            "title": "章节标题（如：一、概述/二、详细说明等）",
+            "type": "text|list|table",
+            "content": "文本内容（type=text 时使用）",
+            "items": ["列表项1", "列表项2"]（type=list 时使用），
+            "headers": ["列1", "列2", "列3"]（type=table 时使用），
+            "rows": [["行1列1", "行1列2", "行1列3"], ["行2列1", "行2列2", "行2列3"]]（type=table 时使用）
+        }}
+    ]
+}}
+
+要求:
+1. 只根据参考文档回答，不要编造信息
+2. 如果文档中没有相关信息，answer 填写"未找到相关文档"，sections 为空数组
+3. sections 至少包含一个章节
+4. 如果内容适合用列表呈现，使用 type="list"
+5. 如果内容适合用表格呈现，使用 type="table"
+6. 输出必须是合法的 JSON，不要有注释
+
+回答（JSON 格式）:"""
+
+    try:
+        llm = get_llm_client()
+        from langchain_core.messages import HumanMessage, SystemMessage
+        messages = [
+            SystemMessage(content="你是一个专业的企业知识库问答助手。"),
+            HumanMessage(content=prompt)
+        ]
+
+        # 使用 ainvoke 获取完整响应（JSON 格式）
+        response = await llm.ainvoke(messages)
+        full_text = response.content
+        
+        # 解析 JSON
+        try:
+            # 尝试提取 JSON（可能包含在 ```json ... ``` 或 ``` ... ``` 中）
+            json_text = full_text.strip()
+            if "```json" in json_text:
+                json_text = json_text.split("```json")[1].split("```")[0]
+            elif "```" in json_text:
+                json_text = json_text.split("```")[1].split("```")[0]
+            json_text = json_text.strip()
+            
+            result = json.loads(json_text)
+        except json.JSONDecodeError:
+            # 如果解析失败，返回原始文本
+            result = {
+                "answer": full_text[:100],
+                "sections": [
+                    {
+                        "title": "回答",
+                        "type": "text",
+                        "content": full_text
+                    }
+                ]
+            }
+        
+        # 流式返回（逐个 section）
+        sources_data = []
+        for chunk in reranked_results[:3]:
+            sources_data.append({
+                "text": chunk["text"][:200] + "..." if len(chunk["text"]) > 200 else chunk["text"],
+                "document_id": chunk["document_id"],
+                "score": chunk.get("rerank_score", chunk.get("score", 0))
+            })
+        
+        # 先返回 answer
+        yield {"type": "answer", "content": result.get("answer", "")}
+        
+        # 再返回 sections
+        for i, section in enumerate(result.get("sections", [])):
+            yield {"type": "section", "index": i, "data": section}
+        
+        # 最后返回 sources
+        yield {"type": "sources", "data": sources_data}
+
+    except Exception as e:
+        yield {"type": "error", "content": f"生成答案时出错: {str(e)}"}

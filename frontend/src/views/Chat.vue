@@ -52,7 +52,7 @@
             :class="['message', msg.role]"
           >
             <div class="message-content">
-              <div class="message-text">{{ msg.content }}</div>
+              <MessageRenderer :data="parseContent(msg.content)" />
               <div v-if="msg.sources && msg.sources.length" class="message-sources">
                 <div class="sources-title">参考文档：</div>
                 <div v-for="(source, idx) in msg.sources" :key="idx" class="source-item">
@@ -92,12 +92,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import api from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
+import MessageRenderer from '../components/MessageRenderer.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -109,6 +110,23 @@ const messages = ref([])
 const inputMessage = ref('')
 const loading = ref(false)
 const messagesScroll = ref(null)
+
+// 解析消息内容为 JSON 或纯文本
+const parseContent = (content) => {
+  if (!content) return null
+  try {
+    const parsed = JSON.parse(content)
+    // 确保有必要的字段
+    return {
+      answer: parsed.answer || '',
+      sections: parsed.sections || [],
+      sources: parsed.sources || []
+    }
+  } catch {
+    // 非 JSON，原样返回作为纯文本
+    return { answer: content, sections: [], sources: [] }
+  }
+}
 
 const fetchSessions = async () => {
   try {
@@ -179,18 +197,72 @@ const sendMessage = async () => {
   loading.value = true
 
   try {
-    const response = await api.post('/api/chat', {
-      session_id: currentSessionId.value,
-      message: userMessage
+    // 添加用户消息
+    messages.value.push({ role: 'user', content: userMessage })
+    
+    // 添加空的助手消息占位
+    const assistantMsg = { role: 'assistant', content: { answer: '', sections: [], sources: [] }, sources: [] }
+    messages.value.push(assistantMsg)
+    
+    // 使用流式接口
+    const response = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        session_id: currentSessionId.value,
+        message: userMessage
+      })
     })
 
-    messages.value.push({ role: 'user', content: userMessage })
-    messages.value.push({
-      role: 'assistant',
-      content: response.data.message,
-      sources: response.data.sources
-    })
-    scrollToBottom()
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let done = false
+    
+    // 收集流式数据
+    let answerText = ''
+    let sectionsData = []
+    let sourcesData = []
+
+    while (!done) {
+      const { value, done: isDone } = await reader.read()
+      done = isDone
+      if (value) {
+        const text = decoder.decode(value)
+        const lines = text.split('\n')
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(5)
+            if (data === '[DONE]') {
+              done = true
+              break
+            }
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.type === 'answer') {
+                answerText = parsed.content
+                assistantMsg.content.answer = answerText
+              } else if (parsed.type === 'section') {
+                sectionsData.push(parsed.data)
+                assistantMsg.content.sections = sectionsData
+              } else if (parsed.type === 'sources') {
+                sourcesData = parsed.data
+                assistantMsg.sources = sourcesData
+              } else if (parsed.type === 'error') {
+                ElMessage.error(parsed.content)
+              }
+              // 触发响应式更新
+              messages.value = [...messages.value]
+              scrollToBottom()
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+    }
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '发送消息失败')
   } finally {

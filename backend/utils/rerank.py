@@ -3,6 +3,7 @@ BGE 重排序模块
 使用 BGE-reranker-base 模型对检索结果进行二次排序
 提升检索精度，将最相关的文档排在前面
 """
+import os
 from typing import List, Tuple, Optional
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 from core.config import get_settings
@@ -25,9 +26,15 @@ def get_rerank_model(model_path: Optional[str] = None) -> HuggingFaceCrossEncode
     """
     global _rerank_model
     if _rerank_model is None:
+        # 优先使用本地路径，如果不存在则使用 HuggingFace 模型名称自动下载
         model_path = model_path or settings.rerank_model_path
+        if os.path.exists(model_path):
+            model_name = model_path
+        else:
+            # 使用 HuggingFace 模型名称，首次调用会自动下载
+            model_name = "BAAI/bge-reranker-base"
         _rerank_model = HuggingFaceCrossEncoder(
-            model_name=model_path,
+            model_name=model_name,
             model_kwargs={"device": "cpu"}
         )
     return _rerank_model

@@ -2,8 +2,11 @@
 问答 API 路由模块
 提供聊天接口和历史消息查询
 使用 RAG 技术进行问答
+支持流式输出
 """
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from models.schemas import ChatRequest, ChatResponse
@@ -81,6 +84,100 @@ async def chat(
         session_id=chat_data.session_id,
         message=answer,
         sources=sources
+    )
+
+
+@router.post("/stream")
+async def chat_stream(
+    chat_data: ChatRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    流式问答接口
+    
+    使用 Server-Sent Events (SSE) 实现流式输出
+    """
+    # 验证会话
+    session = await session_service.get_session_by_id(
+        db=db,
+        session_id=chat_data.session_id,
+        tenant_id=current_user.tenant_id
+    )
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="会话不存在"
+        )
+
+    # 保存用户消息
+    user_message = await session_service.add_message(
+        db=db,
+        session_id=chat_data.session_id,
+        role="user",
+        content=chat_data.message
+    )
+    await db.flush()
+
+    async def generate():
+        full_json = {"answer": "", "sections": [], "sources": []}
+        sections_data = []
+        sources_data = []
+        
+        # 流式生成回答
+        async for chunk in rag_service.stream_chat(
+            query=chat_data.message,
+            session_id=chat_data.session_id,
+            tenant_id=current_user.tenant_id,
+            db=db
+        ):
+            chunk_type = chunk.get("type")
+            
+            if chunk_type == "answer":
+                full_json["answer"] = chunk.get("content", "")
+                yield f"data: {json.dumps({'type': 'answer', 'content': full_json['answer']})}\n\n"
+            
+            elif chunk_type == "section":
+                section = chunk.get("data", {})
+                sections_data.append(section)
+                yield f"data: {json.dumps({'type': 'section', 'data': section})}\n\n"
+            
+            elif chunk_type == "sources":
+                sources_data = chunk.get("data", [])
+                full_json["sources"] = sources_data
+                yield f"data: {json.dumps({'type': 'sources', 'data': sources_data})}\n\n"
+            
+            elif chunk_type == "error":
+                yield f"data: {json.dumps({'type': 'error', 'content': chunk.get('content', '')})}\n\n"
+        
+        # 保存 AI 回复（存 JSON 字符串到数据库）
+        full_json["sections"] = sections_data
+        import json as json_module
+        content_to_save = json_module.dumps(full_json, ensure_ascii=False)
+        
+        if full_json["answer"]:
+            await session_service.add_message(
+                db=db,
+                session_id=chat_data.session_id,
+                role="assistant",
+                content=content_to_save,
+                sources=sources_data
+            )
+            await db.commit()
+        
+        # 发送完成信号
+        yield "data: [DONE]\n\n"
+
+    import json
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
     )
 
 
