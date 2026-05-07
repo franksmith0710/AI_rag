@@ -3,8 +3,12 @@
 负责加载和管理所有配置项，支持从 .env 文件读取环境变量
 """
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+# 项目根目录
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -14,9 +18,9 @@ class Settings(BaseSettings):
     """
 
     # ==================== LLM 配置 ====================
-    deepseek_api_key: str = ""  # DeepSeek API 密钥
-    deepseek_base_url: str = "https://api.deepseek.com"  # DeepSeek API 地址
-    deepseek_model: str = "deepseek-chat"  # 使用的模型名称
+    deepseek_api_key: str = ""  # 从 .env 读取
+    deepseek_base_url: str = ""  # 从 .env 读取
+    deepseek_model: str = ""  # 从 .env 读取
 
     # ==================== 数据库配置 ====================
     db_mode: str = "sqlite"  # 数据库模式: sqlite(开发) / postgresql(生产)
@@ -50,13 +54,9 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "rag-documents"
 
-    # ==================== 模型配置 ====================
-    bge_model_path: str = "./models/bge-m3"  # BGE 向量模型路径
-    rerank_model_path: str = "./models/bge-reranker-base"  # BGE 重排序模型路径
-
     # ==================== Ollama 配置 ====================
-    ollama_host: str = ""  # Ollama 服务地址，优先使用环境变量，为空时使用默认值
-    ollama_embed_model: str = "bge-m3"  # Ollama Embedding 模型名称
+    ollama_host: str = "http://127.0.0.1:11434"  # 强制覆盖系统 env
+    ollama_embed_model: str = "bge-m3"  # 强制覆盖系统 env
 
     # ==================== JWT 配置 ====================
     jwt_secret_key: str = "your-secret-key-change-in-production"  # JWT 密钥
@@ -65,6 +65,12 @@ class Settings(BaseSettings):
 
     # ==================== 文件上传配置 ====================
     upload_dir: str = "./uploads"  # 上传文件存储目录
+
+    # ==================== LangSmith 配置 ====================
+    langchain_api_key: str = ""  # 从 .env 读取（LANGCHAIN_API_KEY）
+    langchain_endpoint: str = ""  # 从 .env 读取（LANGCHAIN_ENDPOINT）
+    langchain_project: str = "AI_rag"  # 从 .env 读取（LANGCHAIN_PROJECT）
+    langchain_tracing_v2: bool = True  # 从 .env 读取（LANGCHAIN_TRACING_V2）
 
     @property
     def sqlite_url(self) -> str:
@@ -82,8 +88,14 @@ class Settings(BaseSettings):
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     class Config:
-        env_file = "../.env"  # 从项目根目录的 .env 文件加载环境变量
+        env_file = str(BASE_DIR / ".env")  # 从项目根目录的 .env 文件加载环境变量
+        env_file_encoding = "utf-8"
         extra = "ignore"  # 忽略额外字段
+        
+    def model_post_init(self, __context):
+        # 强制覆盖 Ollama 主机地址
+        if os.environ.get("OLLAMA_HOST"):
+            self.ollama_host = "http://127.0.0.1:11434"
 
 
 # 使用 lru_cache 缓存配置实例，避免重复读取

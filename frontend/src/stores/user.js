@@ -23,6 +23,18 @@ export const useUserStore = defineStore('user', () => {
     return response.data
   }
 
+  const register = async (username, password) => {
+    const response = await api.post('/api/auth/register', {
+      username,
+      password,
+      tenant_id: 0,
+      role: 'user'
+    })
+    setToken(response.data.access_token)
+    setUser(response.data.user)
+    return response.data
+  }
+
   const logout = () => {
     token.value = ''
     user.value = null
@@ -42,5 +54,5 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  return { token, user, setToken, setUser, login, logout, fetchCurrentUser }
+  return { token, user, setToken, setUser, login, register, logout, fetchCurrentUser }
 })

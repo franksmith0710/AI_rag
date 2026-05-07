@@ -97,7 +97,8 @@ async def get_session(
     session = await session_service.get_session_by_id(
         db=db,
         session_id=session_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id
     )
     if not session:
         raise HTTPException(
@@ -106,7 +107,7 @@ async def get_session(
         )
 
     # 获取消息历史
-    messages = await session_service.get_session_messages(db, session_id, current_user.tenant_id)
+    messages = await session_service.get_session_messages(db, session_id, current_user.tenant_id, current_user.id)
 
     return SessionResponse(
         id=session.id,
@@ -142,6 +143,7 @@ async def update_session_title(
         db=db,
         session_id=session_id,
         tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
         title=title
     )
     await db.commit()
@@ -177,7 +179,8 @@ async def delete_session(
     success = await session_service.delete_session(
         db=db,
         session_id=session_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id
     )
     await db.commit()
 

@@ -9,15 +9,15 @@ import json
 import logging
 from typing import List, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.output_parsers import Pydantic OutputParser
+from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 from rank_bm25 import BM25Okapi
 import jieba
 
-from models.db_models import DocumentChunk, Session as SessionModel, Message
+from models.db_models import DocumentChunk, Session as SessionModel, Message, Document
 from core.config import get_settings
 from core.logging_config import setup_logging
 
@@ -25,7 +25,33 @@ logger = setup_logging("rag_service")
 from core.chroma_conn import similarity_search
 from utils.rerank import rerank_documents
 
+# ==================== RAG 检索参数 ====================
+# 混合检索候选数量 (给带重叠的正文 chunk 入围机会)
+HYBRID_SEARCH_TOP_K = 10
+# 重排后最终保留数量 (只留最相关的，严控 Token)
+RERANK_TOP_K = 3
+# 相关性阈值兜底 (低分无关内容直接跳过 LLM)
+MIN_RELEVANCE_SCORE = 0.1
+
 settings = get_settings()
+
+# 设置 LangSmith 环境变量（确保 langchain tracing 正常工作）
+import os
+if settings.langchain_api_key:
+    os.environ["LANGCHAIN_API_KEY"] = settings.langchain_api_key
+if settings.langchain_project:
+    os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
+if settings.langchain_endpoint:
+    os.environ["LANGCHAIN_ENDPOINT"] = settings.langchain_endpoint
+
+_langsmith_enabled = settings.langchain_tracing_v2 and bool(settings.langchain_api_key)
+
+traceable = None
+if _langsmith_enabled:
+    try:
+        from langsmith import traceable
+    except ImportError:
+        pass
 
 llm_client = None
 
@@ -35,10 +61,11 @@ def get_llm_client() -> ChatOpenAI:
     global llm_client
     if llm_client is None:
         from langchain_openai import ChatOpenAI
+        # 注意: .env 中的 DEEPSEEK_BASE_URL 已包含 /v1，这里不再重复添加
         llm_client = ChatOpenAI(
             model="deepseek-chat",
             api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url + "/v1",
+            base_url=settings.deepseek_base_url,
             temperature=0.7,
             max_tokens=1000,
             http_client=None,
@@ -60,22 +87,31 @@ async def vector_search(query: str, tenant_id: int, top_k: int = 10) -> List[Dic
         检索结果列表
     """
     try:
-        results = similarity_search(
-            tenant_id=tenant_id,
-            query=query,
-            k=top_k
-        )
+        all_documents = []
 
-        documents = []
-        for r in results:
-            documents.append({
-                "document_id": int(r["metadata"].get("document_id", 0)),
-                "chunk_index": int(r["metadata"].get("chunk_index", 0)),
-                "text": r["text"],
-                "score": 1 - r["score"]  # 距离转相似度
-            })
+        # 检索当前租户 + 全局租户 (tenant_id=0)
+        for tid in [tenant_id, 0]:
+            try:
+                results = similarity_search(
+                    tenant_id=tid,
+                    query=query,
+                    k=top_k
+                )
+                for r in results:
+                    all_documents.append({
+                        "document_id": int(r["metadata"].get("document_id", 0)),
+                        "chunk_index": int(r["metadata"].get("chunk_index", 0)),
+                        "text": r["text"],
+                        "score": 1 - r["score"],
+                        "tenant_id": int(r["metadata"].get("tenant_id", tid))
+                    })
+            except Exception as e:
+                logger.warning(f"租户 {tid} 向量检索失败: {e}")
+                continue
 
-        return documents
+        # 按 score 排序，取 top_k
+        all_documents.sort(key=lambda x: x["score"], reverse=True)
+        return all_documents[:top_k]
 
     except Exception as e:
         logger.error(f"向量检索失败: {e}")
@@ -97,11 +133,11 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
         检索结果列表
     """
     try:
-        # 获取该租户的所有文档 ID
+        # 获取该租户 + 全局租户的所有文档 ID
         docs_result = await db.execute(
             select(DocumentChunk.document_id)
             .join(DocumentChunk.document)
-            .where(DocumentChunk.document.has(tenant_id=tenant_id))
+            .where(DocumentChunk.document.has(Document.tenant_id.in_([tenant_id, 0])))
             .distinct()
         )
         document_ids = [row[0] for row in docs_result.all()]
@@ -277,45 +313,42 @@ async def chat_with_rag(
     query: str,
     session_id: int,
     tenant_id: int,
-    db: AsyncSession
+db: AsyncSession
 ) -> Tuple[str, List[Dict[str, Any]]]:
-    """
-    RAG 聊天主流程
-
-    1. 获取会话历史
-    2. 混合检索 (向量 + BM25)
-    3. 重排序
-    4. LLM 生成答案
-    """
-    # 获取会话
+    # Get session
     session_result = await db.execute(select(SessionModel).where(SessionModel.id == session_id))
     session = session_result.scalar_one_or_none()
 
     if not session:
-        return "会话不存在", []
+        return "Session not found", []
 
-    # 获取历史消息
+    # Get history messages
     messages_result = await db.execute(
         select(Message).where(Message.session_id == session_id).order_by(Message.created_at)
     )
     messages = list(messages_result.scalars().all())
 
-    # 构建对话历史
+    # Build conversation history
     conversation_history = [
         {"role": msg.role, "content": msg.content}
         for msg in messages[-10:]
     ]
 
-    # 检索
-    search_results = await hybrid_search(query, tenant_id, db, top_k=10)
+    # Search
+    search_results = await hybrid_search(query, tenant_id, db, top_k=HYBRID_SEARCH_TOP_K)
 
     if not search_results:
-        return "未找到相关文档，请先上传文档到知识库。", []
+        return "No relevant documents found. Please upload documents to the knowledge base first.", []
 
-    # 重排序
-    reranked_results = await rerank_results(query, search_results, top_k=5)
+    # Rerank
+    reranked_results = await rerank_results(query, search_results, top_k=RERANK_TOP_K)
 
-    # 生成答案
+    # 相关性阈值判断：低于 MIN_RELEVANCE_SCORE 则跳过 LLM
+    if reranked_results and reranked_results[0].get("final_score", 0) < MIN_RELEVANCE_SCORE:
+        logger.info(f"检索结果相关性过低，跳过 LLM 调用 (score={reranked_results[0].get('final_score', 0):.3f})")
+        return "未找到相关文档", []
+
+    # Generate answer
     answer, sources = await generate_answer(query, reranked_results, conversation_history)
 
     return answer, sources
@@ -331,14 +364,14 @@ async def stream_chat(
     流式问答
     逐块返回回答内容
     """
-    from sqlalchemy import select
-    from models.db_models import Session as SessionModel, Message
+    logger.info(f"stream_chat: 开始处理 query={query}, session_id={session_id}")
     
     # 获取会话
     session_result = await db.execute(select(SessionModel).where(SessionModel.id == session_id))
     session = session_result.scalar_one_or_none()
 
     if not session:
+        logger.warning(f"stream_chat: 会话不存在 session_id={session_id}")
         yield {"answer": "会话不存在"}
         return
 
@@ -354,14 +387,40 @@ async def stream_chat(
     ]
 
     # 检索
-    search_results = await hybrid_search(query, tenant_id, db, top_k=10)
+    logger.info(f"stream_chat: 开始检索 query={query}")
+    search_results = await hybrid_search(query, tenant_id, db, top_k=HYBRID_SEARCH_TOP_K)
+    logger.info(f"stream_chat: 检索完成, 找到 {len(search_results)} 条结果")
 
     if not search_results:
-        yield {"answer": "未找到相关文档，请先上传文档到知识库。", "sources": []}
+        logger.warning("stream_chat: 未找到相关文档")
+        # 添加 type 字段，API 层才能识别
+        full_data = {
+            "answer": "未找到相关文档，请先上传文档到知识库。",
+            "sections": [],
+            "sources": []
+        }
+        yield {"type": "answer_chunk", "content": json.dumps(full_data)}
+        yield {"type": "sources", "data": []}
+        yield {"type": "answer_done", "full_content": json.dumps({"answer": "未找到相关文档", "sections": []})}
         return
 
     # 重排序
-    reranked_results = await rerank_results(query, search_results, top_k=5)
+    logger.info(f"stream_chat: 开始重排序")
+    reranked_results = await rerank_results(query, search_results, top_k=RERANK_TOP_K)
+    logger.info(f"stream_chat: 重排序完成, 保留 {len(reranked_results)} 条结果")
+
+    # 相关性阈值判断：低于 MIN_RELEVANCE_SCORE 则跳过 LLM
+    if reranked_results and reranked_results[0].get("final_score", 0) < MIN_RELEVANCE_SCORE:
+        logger.info(f"stream_chat: 检索结果相关性过低 (score={reranked_results[0].get('final_score', 0):.3f})，跳过 LLM")
+        full_data = {
+            "answer": "未找到相关文档",
+            "sections": [],
+            "sources": []
+        }
+        yield {"type": "answer_chunk", "content": json.dumps(full_data)}
+        yield {"type": "sources", "data": []}
+        yield {"type": "answer_done", "full_content": json.dumps({"answer": "未找到相关文档", "sections": []})}
+        return
 
     # 构建上下文
     context_text = "\n\n".join([
@@ -411,6 +470,7 @@ async def stream_chat(
 回答（JSON 格式）:"""
 
     try:
+        logger.info(f"stream_chat: 开始调用 LLM")
         llm = get_llm_client()
         from langchain_core.messages import HumanMessage, SystemMessage
         messages = [
@@ -419,8 +479,14 @@ async def stream_chat(
         ]
 
         # 使用 ainvoke 获取完整响应（JSON 格式）
-        response = await llm.ainvoke(messages)
-        full_text = response.content
+        logger.info(f"stream_chat: 调用 DeepSeek API, model=deepseek-chat")
+        try:
+            response = await llm.ainvoke(messages)
+            full_text = response.content
+        except Exception as api_error:
+            logger.error(f"stream_chat: DeepSeek API 调用失败: {api_error}")
+            raise
+        logger.info(f"stream_chat: LLM 调用完成, 响应长度={len(full_text)}")
         
         # 解析 JSON
         try:
@@ -446,7 +512,7 @@ async def stream_chat(
                 ]
             }
         
-        # 流式返回（逐个 section）
+        # 先构建 sources_data
         sources_data = []
         for chunk in reranked_results[:3]:
             sources_data.append({
@@ -455,15 +521,30 @@ async def stream_chat(
                 "score": chunk.get("rerank_score", chunk.get("score", 0))
             })
         
-        # 先返回 answer
-        yield {"type": "answer", "content": result.get("answer", "")}
+        # 返回完整 JSON 数据（用于前端实时显示）
+        full_data = {
+            "answer": result.get("answer", ""),
+            "sections": result.get("sections", []),
+            "sources": sources_data
+        }
         
-        # 再返回 sections
+        # 先返回 answer_chunk (包含完整 JSON，前端可实时解析)
+        logger.info(f"stream_chat: 返回 answer_chunk, content={result.get('answer', '')[:50]}...")
+        yield {"type": "answer_chunk", "content": json.dumps(full_data)}
+        
+        # 再返回 sections (兼容旧代码)
         for i, section in enumerate(result.get("sections", [])):
+            logger.info(f"stream_chat: 返回 section {i}")
             yield {"type": "section", "index": i, "data": section}
         
-        # 最后返回 sources
+        # 返回 sources
+        logger.info(f"stream_chat: 返回 sources, count={len(sources_data)}")
         yield {"type": "sources", "data": sources_data}
+        
+        # 最后返回 answer_done
+        logger.info(f"stream_chat: 返回 answer_done")
+        yield {"type": "answer_done", "full_content": json.dumps(result)}
 
     except Exception as e:
+        logger.error(f"stream_chat: 生成答案出错: {e}")
         yield {"type": "error", "content": f"生成答案时出错: {str(e)}"}

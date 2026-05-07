@@ -8,26 +8,25 @@ from typing import List
 
 
 def create_text_splitter(
-    chunk_size: int = 700,
-    chunk_overlap: int = 150,
+    chunk_size: int = 650,
+    chunk_overlap: int = 180,
     separators: List[str] = None
 ) -> RecursiveCharacterTextSplitter:
     """
     创建文本分块器
 
     Args:
-        chunk_size: 分块大小(字符数)，默认 700
-        chunk_overlap: 分块重叠字数，默认 150
+        chunk_size: 分块大小(字符数)，默认 650
+        chunk_overlap: 分块重叠字数，默认 180
         separators: 分隔符列表，按优先级排序
 
     Returns:
         RecursiveCharacterTextSplitter 实例
     """
     if separators is None:
-        # 默认分隔符：按优先级从低到高
-        # 先按段落分割(\n\n)，再按句子(\n，。？！)
-        # 这样可以保证在段落边界分割，保留语义完整性
-        separators = ["\n\n", "\n", "。", "？", "！", "；", "，", " "]
+        # 默认分隔符：优先段落边界，其次句子
+        # \n\n 最优先，保证段落完整性；句子分隔符放后面
+        separators = ["\n\n", "\n", "；", "。", "？", "！", "，", " "]
 
     return RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
@@ -38,7 +37,7 @@ def create_text_splitter(
     )
 
 
-def split_text(text: str, chunk_size: int = 700, chunk_overlap: int = 150) -> List[str]:
+def split_text(text: str, chunk_size: int = 650, chunk_overlap: int = 180) -> List[str]:
     """
     将文本分割成 chunks
 
@@ -60,7 +59,7 @@ def split_text(text: str, chunk_size: int = 700, chunk_overlap: int = 150) -> Li
     return splitter.split_text(text)
 
 
-def split_documents(documents: List[str], chunk_size: int = 700, chunk_overlap: int = 150) -> List[str]:
+def split_documents(documents: List[str], chunk_size: int = 650, chunk_overlap: int = 180) -> List[str]:
     """
     批量分割多个文档
 

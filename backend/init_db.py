@@ -22,13 +22,26 @@ logger = logging.getLogger(__name__)
 async def init_default_data():
     """
     初始化默认数据
+    - 创建全局共享租户 (tenant_id=0)
     - 创建默认租户 (如果不存在)
     - 创建多个用户账号
     """
     async with async_session_maker() as session:
-        # 检查是否已有租户
         from sqlalchemy import select
-        result = await session.execute(select(Tenant))
+
+        # 1. 确保全局共享租户存在 (tenant_id=0)
+        global_tenant_result = await session.execute(
+            select(Tenant).where(Tenant.id == 0)
+        )
+        global_tenant = global_tenant_result.scalar_one_or_none()
+        if not global_tenant:
+            global_tenant = Tenant(id=0, name="全局共享")
+            session.add(global_tenant)
+            await session.flush()
+            logger.info("Created global shared tenant (tenant_id=0)")
+
+        # 2. 检查是否已有其他租户
+        result = await session.execute(select(Tenant).where(Tenant.id != 0))
         tenant = result.scalar_one_or_none()
 
         if not tenant:

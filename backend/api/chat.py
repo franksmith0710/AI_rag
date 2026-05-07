@@ -5,6 +5,7 @@
 支持流式输出
 """
 import asyncio
+import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -94,15 +95,16 @@ async def chat_stream(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    流式问答接口
-    
+    流式问答接口（适配真流式输出）
+
     使用 Server-Sent Events (SSE) 实现流式输出
     """
     # 验证会话
     session = await session_service.get_session_by_id(
         db=db,
         session_id=chat_data.session_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id
     )
     if not session:
         raise HTTPException(
@@ -120,10 +122,9 @@ async def chat_stream(
     await db.flush()
 
     async def generate():
-        full_json = {"answer": "", "sections": [], "sources": []}
-        sections_data = []
+        answer_text = ""
         sources_data = []
-        
+
         # 流式生成回答
         async for chunk in rag_service.stream_chat(
             query=chat_data.message,
@@ -132,43 +133,50 @@ async def chat_stream(
             db=db
         ):
             chunk_type = chunk.get("type")
-            
-            if chunk_type == "answer":
-                full_json["answer"] = chunk.get("content", "")
-                yield f"data: {json.dumps({'type': 'answer', 'content': full_json['answer']})}\n\n"
-            
+
+            # 处理所有 chunk 类型
+            if chunk_type == "answer_chunk":
+                content = chunk.get("content", "")
+                answer_text += content
+                yield f"data: {json.dumps({'type': 'answer_chunk', 'content': content})}\n\n"
+
             elif chunk_type == "section":
-                section = chunk.get("data", {})
-                sections_data.append(section)
-                yield f"data: {json.dumps({'type': 'section', 'data': section})}\n\n"
-            
+                section_data = chunk.get("data", {})
+                yield f"data: {json.dumps({'type': 'section', 'index': chunk.get('index'), 'data': section_data})}\n\n"
+
+            elif chunk_type == "answer_done":
+                # 答案完成，保存完整答案
+                if chunk.get("full_content"):
+                    answer_text = chunk.get("full_content", answer_text)
+                yield f"data: {json.dumps({'type': 'answer_done'})}\n\n"
+
             elif chunk_type == "sources":
                 sources_data = chunk.get("data", [])
-                full_json["sources"] = sources_data
                 yield f"data: {json.dumps({'type': 'sources', 'data': sources_data})}\n\n"
-            
+
             elif chunk_type == "error":
                 yield f"data: {json.dumps({'type': 'error', 'content': chunk.get('content', '')})}\n\n"
-        
-        # 保存 AI 回复（存 JSON 字符串到数据库）
-        full_json["sections"] = sections_data
-        import json as json_module
-        content_to_save = json_module.dumps(full_json, ensure_ascii=False)
-        
-        if full_json["answer"]:
+
+        # 保存 AI 回复到数据库
+        if answer_text:
+            # 尝试解析 answer_text 为 JSON 提取 answer 字段
+            try:
+                parsed = json.loads(answer_text)
+                save_content = parsed.get("answer", answer_text)
+            except (json.JSONDecodeError, TypeError):
+                save_content = answer_text
+            
             await session_service.add_message(
                 db=db,
                 session_id=chat_data.session_id,
                 role="assistant",
-                content=content_to_save,
+                content=save_content,
                 sources=sources_data
             )
             await db.commit()
-        
+
         # 发送完成信号
         yield "data: [DONE]\n\n"
-
-    import json
 
     return StreamingResponse(
         generate(),
@@ -202,7 +210,8 @@ async def get_chat_history(
     session = await session_service.get_session_by_id(
         db=db,
         session_id=session_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id
     )
     if not session:
         raise HTTPException(
@@ -214,7 +223,8 @@ async def get_chat_history(
     messages = await session_service.get_session_messages(
         db=db,
         session_id=session_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id
     )
 
     return ApiResponse.success(data=[m.model_dump() for m in messages])

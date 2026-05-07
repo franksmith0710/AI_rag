@@ -1,43 +1,29 @@
 """
-BGE 重排序模块
-使用 BGE-reranker-base 模型对检索结果进行二次排序
-提升检索精度，将最相关的文档排在前面
+重排序模块
+使用本地 Ollama rerank 模型 (qllama/bge-reranker-v2-m3) 进行重排序
 """
-import os
+import httpx
+import numpy as np
+import logging
 from typing import List, Tuple, Optional
-from langchain_community.cross_encoders import HuggingFaceCrossEncoder
-from core.config import get_settings
+import warnings
+warnings.filterwarnings("ignore")
 
-settings = get_settings()
+logger = logging.getLogger("rerank")
 
-_rerank_model = None  # 模型单例
+_reranker_model_name = "qllama/bge-reranker-v2-m3"
 
 
-def get_rerank_model(model_path: Optional[str] = None) -> HuggingFaceCrossEncoder:
-    """
-    获取 BGE 重排序模型
-    使用单例模式避免重复加载
-
-    Args:
-        model_path: 模型路径，默认从配置读取
-
-    Returns:
-        CrossEncoder 模型实例
-    """
-    global _rerank_model
-    if _rerank_model is None:
-        # 优先使用本地路径，如果不存在则使用 HuggingFace 模型名称自动下载
-        model_path = model_path or settings.rerank_model_path
-        if os.path.exists(model_path):
-            model_name = model_path
-        else:
-            # 使用 HuggingFace 模型名称，首次调用会自动下载
-            model_name = "BAAI/bge-reranker-base"
-        _rerank_model = HuggingFaceCrossEncoder(
-            model_name=model_name,
-            model_kwargs={"device": "cpu"}
+def _get_embedding(text: str) -> List[float]:
+    """使用本地 Ollama 获取 embedding"""
+    with httpx.Client(timeout=120.0) as client:
+        response = client.post(
+            "http://127.0.0.1:11434/api/embed",
+            json={"model": _reranker_model_name, "input": text}
         )
-    return _rerank_model
+        response.raise_for_status()
+        data = response.json()
+        return data["embeddings"][0]
 
 
 def rerank_documents(
@@ -46,12 +32,8 @@ def rerank_documents(
     top_k: int = 5
 ) -> List[Tuple[int, float]]:
     """
-    对检索结果进行重排序
-
-    工作原理:
-        1. 将 query 和每个 doc 拼接成 [query, doc] 对
-        2. 一次性传入模型，获取每对的相关性分数
-        3. 按分数降序排列，返回 top_k
+    使用本地 Ollama rerank 模型进行重排序
+    通过 embedding 相似度计算进行 rerank
 
     Args:
         query: 用户查询
@@ -59,31 +41,36 @@ def rerank_documents(
         top_k: 返回前 k 个最相关文档
 
     Returns:
-        List[Tuple[索引, 分数]]，按分数降序排列
-
-    示例:
-        >>> query = "如何创建用户？"
-        >>> docs = ["创建用户的方法...", "用户权限设置...", "文档上传..."]
-        >>> results = rerank_documents(query, docs, top_k=2)
-        >>> print(results)
-        [(1, 0.95), (0, 0.82)]
+        List[Tuple[索引, 分数]]，按相似度降序排列
     """
     if not documents:
         return []
 
-    model = get_rerank_model()
-
-    # 构建 [query, doc] 对列表
-    pairs = [[query, doc] for doc in documents]
-
-    # 一次性预测所有对的分数
-    scores = model.predict(pairs)
-
-    # 按分数降序排列
-    doc_scores = list(enumerate(scores))
-    doc_scores.sort(key=lambda x: x[1], reverse=True)
-
-    return doc_scores[:top_k]
+    try:
+        q_emb = _get_embedding(query)
+        
+        scores = []
+        for doc in documents:
+            d_emb = _get_embedding(doc)
+            
+            q = np.array(q_emb)
+            d = np.array(d_emb)
+            dot = float(np.dot(q, d))
+            norm_q = float(np.linalg.norm(q))
+            norm_d = float(np.linalg.norm(d))
+            score = dot / (norm_q * norm_d) if norm_q > 0 and norm_d > 0 else 0.0
+            scores.append(score)
+        
+        doc_scores = list(enumerate(scores))
+        doc_scores.sort(key=lambda x: x[1], reverse=True)
+        
+        logger.info(f"Rerank ({_reranker_model_name}): top score = {doc_scores[0][1]:.4f}")
+        return doc_scores[:top_k]
+    
+    except Exception as e:
+        logger.warning(f"Rerank failed, using original order: {e}")
+        doc_scores = list(enumerate([1.0] * len(documents)))
+        return doc_scores[:top_k]
 
 
 def rerank_with_scores(
@@ -92,7 +79,8 @@ def rerank_with_scores(
     scores: List[float]
 ) -> List[Tuple[int, float]]:
     """
-    结合初始分数进行重排序 (预留接口)
+    结合初始分数进行重排序
+    按初始分数排序
 
     Args:
         query: 用户查询
@@ -105,6 +93,7 @@ def rerank_with_scores(
     if not documents:
         return []
 
-    # 暂时只使用 BGE 重排序结果
-    reranked = rerank_documents(query, documents, top_k=len(documents))
-    return reranked
+    doc_scores = list(enumerate(scores))
+    doc_scores.sort(key=lambda x: x[1], reverse=True)
+
+    return doc_scores[:len(documents)]

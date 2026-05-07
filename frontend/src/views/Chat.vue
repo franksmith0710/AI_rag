@@ -113,7 +113,7 @@ const messagesScroll = ref(null)
 
 // 解析消息内容为 JSON 或纯文本
 const parseContent = (content) => {
-  if (!content) return null
+  if (!content) return { answer: '', sections: [], sources: [] }
   try {
     const parsed = JSON.parse(content)
     // 确保有必要的字段
@@ -123,8 +123,8 @@ const parseContent = (content) => {
       sources: parsed.sources || []
     }
   } catch {
-    // 非 JSON，原样返回作为纯文本
-    return { answer: content, sections: [], sources: [] }
+    // 非 JSON，原样返回为纯文本（无底部分割线）
+    return { answer: '', sections: [], sources: [], rawText: content }
   }
 }
 
@@ -199,11 +199,11 @@ const sendMessage = async () => {
   try {
     // 添加用户消息
     messages.value.push({ role: 'user', content: userMessage })
-    
-    // 添加空的助手消息占位
-    const assistantMsg = { role: 'assistant', content: { answer: '', sections: [], sources: [] }, sources: [] }
+
+    // 添加空的助手消息占位（纯文本格式）
+    const assistantMsg = { role: 'assistant', content: '', sources: [] }
     messages.value.push(assistantMsg)
-    
+
     // 使用流式接口
     const response = await fetch('/api/chat/stream', {
       method: 'POST',
@@ -220,10 +220,10 @@ const sendMessage = async () => {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let done = false
-    
+    let buffer = '' // 缓冲区，处理被截断的 SSE 行
+
     // 收集流式数据
     let answerText = ''
-    let sectionsData = []
     let sourcesData = []
 
     while (!done) {
@@ -231,22 +231,30 @@ const sendMessage = async () => {
       done = isDone
       if (value) {
         const text = decoder.decode(value)
-        const lines = text.split('\n')
+        // 将新文本追加到缓冲区
+        buffer += text
+        
+        // 按行分割，保留最后一行（可能是不完整的）
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+        
+        // 处理所有完整的行
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(5)
+            const data = line.slice(6).trim() // 去掉 'data: ' 并 trim
             if (data === '[DONE]') {
               done = true
               break
             }
             try {
               const parsed = JSON.parse(data)
-              if (parsed.type === 'answer') {
-                answerText = parsed.content
-                assistantMsg.content.answer = answerText
-              } else if (parsed.type === 'section') {
-                sectionsData.push(parsed.data)
-                assistantMsg.content.sections = sectionsData
+              if (parsed.type === 'answer_chunk') {
+                // 流式接收答案片段
+                answerText += parsed.content
+                assistantMsg.content = answerText
+              } else if (parsed.type === 'answer_done') {
+                // 答案完成
+                answerText = parsed.full_content || answerText
               } else if (parsed.type === 'sources') {
                 sourcesData = parsed.data
                 assistantMsg.sources = sourcesData
@@ -257,9 +265,26 @@ const sendMessage = async () => {
               messages.value = [...messages.value]
               scrollToBottom()
             } catch (e) {
-              // 忽略解析错误
+              console.error('SSE 解析错误:', e, 'data:', data)
             }
           }
+        }
+      }
+    }
+    
+    // 处理缓冲区中剩余的数据（最后的完整行）
+    if (buffer.startsWith('data: ')) {
+      const data = buffer.slice(6).trim()
+      if (data && data !== '[DONE]') {
+        try {
+          const parsed = JSON.parse(data)
+          if (parsed.type === 'answer_chunk') {
+            answerText += parsed.content
+            assistantMsg.content = answerText
+          }
+          messages.value = [...messages.value]
+        } catch (e) {
+          console.error('缓冲区解析错误:', e)
         }
       }
     }
@@ -475,6 +500,17 @@ onMounted(async () => {
 
 .chat-input .el-textarea {
   flex: 1;
+}
+
+.chat-input .el-textarea :deep(.el-textarea__inner) {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.chat-input .el-textarea :deep(.el-textarea__inner:focus) {
+  border-color: #409eff;
+  box-shadow: none;
 }
 
 .chat-input .el-button {

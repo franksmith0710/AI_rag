@@ -2,10 +2,14 @@
 数据库模型定义
 使用 SQLAlchemy ORM 定义所有数据库表结构
 """
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from core.database import Base
+
+
+def utc_now():
+    return datetime.now()
 
 
 class Tenant(Base):
@@ -17,8 +21,8 @@ class Tenant(Base):
 
     id = Column(Integer, primary_key=True, index=True)  # 主键
     name = Column(String(255), nullable=False)  # 租户名称
-    created_at = Column(DateTime, server_default=func.now())  # 创建时间
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())  # 更新时间
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # 关联关系
     users = relationship("User", back_populates="tenant")  # 租户下的用户
@@ -38,8 +42,8 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False, index=True)  # 用户名(唯一)
     password_hash = Column(String(255), nullable=False)  # 密码哈希
     role = Column(String(20), default="user")  # 角色: admin(管理员) / user(普通用户)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # 关联
     tenant = relationship("Tenant", back_populates="users")
@@ -63,8 +67,8 @@ class Document(Base):
     status = Column(String(20), default="pending")  # 处理状态: pending(待处理) / completed(已完成)
     chunk_count = Column(Integer, default=0)  # 分块数量
     created_by = Column(Integer, ForeignKey("users.id"))  # 上传用户
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # 关联
     tenant = relationship("Tenant", back_populates="documents")
@@ -82,7 +86,7 @@ class DocumentChunk(Base):
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)  # 所属文档
     chunk_index = Column(Integer, nullable=False)  # 分块序号
     text = Column(Text, nullable=False)  # 分块文本内容
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=utc_now)
 
     # 关联
     document = relationship("Document", back_populates="chunks")
@@ -99,8 +103,8 @@ class Session(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)  # 所属租户
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # 所属用户
     title = Column(String(255))  # 会话标题
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # 关联
     tenant = relationship("Tenant", back_populates="sessions")
@@ -120,7 +124,7 @@ class Message(Base):
     role = Column(String(20), nullable=False)  # 角色: user(用户) / assistant(AI)
     content = Column(Text, nullable=False)  # 消息内容
     sources = Column(JSON)  # 参考文档来源 (RAG 检索结果)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=utc_now)
 
     # 关联
     session = relationship("Session", back_populates="messages")

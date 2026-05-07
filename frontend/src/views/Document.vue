@@ -10,10 +10,11 @@
         <el-upload
           :action="uploadUrl"
           :headers="uploadHeaders"
+          :data="uploadData"
           :on-success="handleUploadSuccess"
           :on-error="handleUploadError"
           :show-file-list="false"
-          accept=".pdf,.docx,.doc,.txt"
+          accept=".pdf,.docx,.doc,.txt,.md"
         >
           <el-button type="primary">
             <el-icon><Upload /></el-icon>
@@ -22,6 +23,11 @@
         </el-upload>
       </div>
     </div>
+
+    <el-tabs v-model="activeTab" class="doc-tabs" @tab-change="handleTabChange">
+      <el-tab-pane label="我的文档" name="my" />
+      <el-tab-pane label="全局共享" name="global" />
+    </el-tabs>
 
     <el-table :data="documents" style="width: 100%" v-loading="loading">
       <el-table-column prop="title" label="文档标题" min-width="200" />
@@ -53,7 +59,8 @@
           <el-button
             size="small"
             type="danger"
-            @click="deleteDocument(row.id)"
+            @click="deleteDocument(row)"
+            :disabled="row.tenant_id === 0 && !isAdmin"
           >
             删除
           </el-button>
@@ -76,10 +83,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user'
 import api from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 const documents = ref([])
 const loading = ref(false)
@@ -87,10 +96,16 @@ const processingId = ref(null)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const activeTab = ref('my')
+
+const isAdmin = computed(() => userStore.user?.role === 'admin')
 
 const uploadUrl = computed(() => '/api/documents/upload')
 const uploadHeaders = computed(() => ({
   Authorization: `Bearer ${localStorage.getItem('token')}`
+}))
+const uploadData = computed(() => ({
+  is_global: activeTab.value === 'global' ? 'true' : 'false'
 }))
 
 const fetchDocuments = async () => {
@@ -102,13 +117,24 @@ const fetchDocuments = async () => {
         limit: pageSize.value
       }
     })
-    documents.value = response.data.items
-    total.value = response.data.total
+
+    // 根据 TAB 过滤显示
+    if (activeTab.value === 'my') {
+      documents.value = response.data.items.filter(d => d.tenant_id !== 0)
+    } else {
+      documents.value = response.data.items.filter(d => d.tenant_id === 0)
+    }
+    total.value = documents.value.length
   } catch (error) {
     ElMessage.error('获取文档列表失败')
   } finally {
     loading.value = false
   }
+}
+
+const handleTabChange = () => {
+  currentPage.value = 1
+  fetchDocuments()
 }
 
 const handleUploadSuccess = async (response) => {
@@ -139,7 +165,13 @@ const processDocument = async (docId) => {
   }
 }
 
-const deleteDocument = async (docId) => {
+const deleteDocument = async (doc) => {
+  // 权限校验
+  if (doc.tenant_id === 0 && !isAdmin.value) {
+    ElMessage.warning('只有管理员可以删除全局共享文档')
+    return
+  }
+
   try {
     await ElMessageBox.confirm('确定要删除这个文档吗？', '提示', {
       confirmButtonText: '确定',
@@ -147,7 +179,7 @@ const deleteDocument = async (docId) => {
       type: 'warning'
     })
 
-    await api.delete(`/api/documents/${docId}`)
+    await api.delete(`/api/documents/${doc.id}`)
     ElMessage.success('删除成功')
     await fetchDocuments()
   } catch (error) {
@@ -171,8 +203,9 @@ const goToChat = () => {
   router.push('/chat')
 }
 
-onMounted(() => {
-  fetchDocuments()
+onMounted(async () => {
+  await userStore.fetchCurrentUser()
+  await fetchDocuments()
 })
 </script>
 
@@ -198,6 +231,10 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 10px;
+}
+
+.doc-tabs {
+  margin-bottom: 20px;
 }
 
 .pagination {

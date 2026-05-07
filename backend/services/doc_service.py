@@ -79,25 +79,9 @@ async def process_document(
         处理是否成功
     """
     # 1. 文本分块
-    chunks = split_text(text_content, chunk_size=700, chunk_overlap=150)
+    chunks = split_text(text_content, chunk_size=650, chunk_overlap=180)
 
-    # 2. 存储分块到数据库
-    for idx, chunk_text in enumerate(chunks):
-        chunk = DocumentChunk(
-            document_id=document_id,
-            chunk_index=idx,
-            text=chunk_text
-        )
-        db.add(chunk)
-
-    # 3. 更新文档状态
-    doc_result = await db.execute(select(Document).where(Document.id == document_id))
-    doc = doc_result.scalar_one()
-    doc.status = "completed"
-    doc.chunk_count = len(chunks)
-    await db.flush()
-
-    # 4. 存储到向量库 (Chroma)
+    # 2. 先存储到向量库 (Chroma)，失败则直接返回
     try:
         metadatas = [
             {
@@ -115,6 +99,22 @@ async def process_document(
     except Exception as e:
         logger.error(f"向量库存储失败: {e}")
         return False
+
+    # 3. 向量存储成功后，存储分块到数据库
+    for idx, chunk_text in enumerate(chunks):
+        chunk = DocumentChunk(
+            document_id=document_id,
+            chunk_index=idx,
+            text=chunk_text
+        )
+        db.add(chunk)
+
+    # 4. 更新文档状态
+    doc_result = await db.execute(select(Document).where(Document.id == document_id))
+    doc = doc_result.scalar_one()
+    doc.status = "completed"
+    doc.chunk_count = len(chunks)
+    await db.flush()
 
     return True
 
@@ -134,12 +134,20 @@ async def get_documents(
     db: AsyncSession,
     tenant_id: int,
     skip: int = 0,
-    limit: int = 20
+    limit: int = 20,
+    include_global: bool = True
 ) -> DocumentListResponse:
-    """获取文档列表"""
+    """获取文档列表（包含全局共享文档）"""
+    from sqlalchemy import or_
+    # 查询当前租户 OR 全局租户(tenant_id=0)
+    if include_global:
+        query_filter = or_(Document.tenant_id == tenant_id, Document.tenant_id == 0)
+    else:
+        query_filter = Document.tenant_id == tenant_id
+
     result = await db.execute(
         select(Document)
-        .where(Document.tenant_id == tenant_id)
+        .where(query_filter)
         .order_by(Document.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -148,7 +156,7 @@ async def get_documents(
 
     # 统计总数
     count_result = await db.execute(
-        select(func.count()).select_from(Document).where(Document.tenant_id == tenant_id)
+        select(func.count()).select_from(Document).where(query_filter)
     )
     total = count_result.scalar() or 0
 
@@ -219,7 +227,7 @@ def extract_text_from_file(file_path: str, file_type: str) -> str:
             for para in doc.paragraphs:
                 text += para.text + "\n"
 
-        elif file_type == "txt":
+        elif file_type in ["txt", "md"]:
             with open(file_path, "r", encoding="utf-8") as f:
                 text = f.read()
 

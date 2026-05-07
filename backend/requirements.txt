@@ -11,19 +11,17 @@ asyncpg==0.30.0
 # Redis (optional for production)
 redis==5.2.0
 
-# LangChain & RAG
-langchain>=0.3.0
-langchain-community>=0.3.0
-langchain-huggingface>=0.1.0
+# LangChain (let pip resolve compatible versions)
+langchain
+langchain-core
+langchain-community
+langchain-text-splitters
+langchain-ollama
+langchain-openai
+langsmith
 
-# Embedding & Rerank
-sentence-transformers==3.3.1
-
-# Chroma (local vector store)
+# Vector Store
 chromadb==0.5.5
-
-# Milvus (optional for production)
-pymilvus==2.4.12
 
 # Document Processing
 pypdf==5.1.0
@@ -31,19 +29,14 @@ python-docx==1.1.2
 python-dotenv==1.0.1
 
 # LLM
-openai==1.57.4
-langchain-openai>=0.2.0
-langsmith>=0.1.0
+openai>=2.26.0,<3.0.0
 
 # Utils
-pydantic==2.10.3
-pydantic-settings==2.6.1
+pydantic==2.12.5
+pydantic-settings>=2.4.0,<3.0.0
 bcrypt==4.2.1
 passlib==1.7.4
 python-jose[cryptography]==3.3.0
-
-# LangChain Extras
-langchain-text-splitters>=0.3.0
 
 # For BM25
 rank_bm25==0.2.2

@@ -22,9 +22,9 @@ if settings.db_mode == "sqlite":
 
     # 创建异步引擎
     async_engine = create_async_engine(
-        f"sqlite+aiosqlite:///{db_path}",  # aiosqlite 驱动
-        echo=False,  # 关闭 SQL 日志输出
-        pool_pre_ping=True  # 连接前检查连接有效性
+        f"sqlite+aiosqlite:///{db_path}?timezone=Asia/Shanghai",
+        echo=False,
+        pool_pre_ping=True
     )
 
     # 创建异步会话工厂
@@ -34,12 +34,12 @@ if settings.db_mode == "sqlite":
         expire_on_commit=False  # 提交后不自动过期对象
     )
 
-    # 创建同步引擎 (用于表创建等操作)
+    # 创建同步引擎
     sync_engine = create_engine(
-        f"sqlite:///{db_path}",
+        f"sqlite:///{db_path}?timezone=Asia/Shanghai",
         echo=False,
         pool_pre_ping=True,
-        connect_args={"check_same_thread": False}  # 允许跨线程访问
+        connect_args={"check_same_thread": False}
     )
 else:
     # ==================== PostgreSQL 生产模式 ====================

@@ -1,13 +1,13 @@
 """
 Chroma 向量数据库连接模块
 负责文档向量的存储和检索
-Chroma 是一个轻量级的本地向量数据库，适合开发环境
+使用 Ollama Embedding
 """
 import os
 import logging
-from typing import Optional, List, Dict, Any
+import httpx
+from typing import Optional, List, Dict, Any, Union
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import OllamaEmbeddings
 from .config import get_settings
 from .logging_config import setup_logging
 import hashlib
@@ -15,26 +15,70 @@ import hashlib
 logger = setup_logging("chroma_conn")
 settings = get_settings()
 
-_chroma_store: Optional[Chroma] = None  # Chroma 客户端单例
-_embedding_model = None  # BGE 嵌入模型单例
+_chroma_store: Optional[Chroma] = None
+_embedding_model = None
+_chroma_stores: Dict[int, Chroma] = {}
+
+
+def _get_ollama_embedding(text: str) -> List[float]:
+    """直接使用 httpx 调用 Ollama API 获取 embedding"""
+    ollama_url = settings.ollama_host
+    if not ollama_url.startswith("http"):
+        ollama_url = f"http://{ollama_url}"
+    # 确保使用 IPv4 地址 (Windows)
+    if "localhost" in ollama_url:
+        ollama_url = ollama_url.replace("localhost", "127.0.0.1")
+    
+    model = settings.ollama_embed_model or "bge-m3"
+    
+    with httpx.Client(timeout=60.0) as client:
+        response = client.post(
+            f"{ollama_url}/api/embeddings",
+            json={"model": model, "prompt": text}
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["embedding"]
 
 
 def get_embedding_model():
     """
-    获取 Ollama Embedding 模型
-    使用本地 Ollama 服务
-
-    Returns:
-        OllamaEmbeddings 模型实例
+    获取自定义 Embedding 模型
+    使用直接调用方式避免 langchain_ollama 连接问题
     """
     global _embedding_model
-    if _embedding_model is None:
-        # 优先使用配置，如果没有则使用本地默认
-        base_url = settings.ollama_host if settings.ollama_host else "http://127.0.0.1:11434"
-        _embedding_model = OllamaEmbeddings(
-            model=settings.ollama_embed_model,
-            base_url=base_url
-        )
+    
+    if _embedding_model is not None:
+        return _embedding_model
+    
+    class CustomOllamaEmbeddings:
+        """自定义 Ollama Embedding 包装"""
+        
+        def embed_documents(self, texts: List[str]) -> List[List[float]]:
+            logger.info(f"embed_documents: 接收 {len(texts)} 个文本")
+            results = []
+            for i, t in enumerate(texts):
+                try:
+                    emb = _get_ollama_embedding(t)
+                    logger.info(f"embed_documents[{i}]: 成功, 向量长度={len(emb)}")
+                    results.append(emb)
+                except Exception as e:
+                    logger.error(f"embed_documents[{i}]: 失败 - {e}")
+                    results.append([])
+            return results
+        
+        def embed_query(self, text: str) -> List[float]:
+            logger.info(f"embed_query: 文本长度={len(text)}")
+            try:
+                result = _get_ollama_embedding(text)
+                logger.info(f"embed_query: 成功, 向量长度={len(result)}")
+                return result
+            except Exception as e:
+                logger.error(f"embed_query: 失败 - {e}")
+                return []
+    
+    _embedding_model = CustomOllamaEmbeddings()
+    logger.info(f"使用 Ollama Embedding: {settings.ollama_embed_model or 'bge-m3'}")
     return _embedding_model
 
 
@@ -62,7 +106,7 @@ def get_chroma_store() -> Chroma:
 
 def create_document_collection(tenant_id: int) -> Chroma:
     """
-    为租户创建独立的向量集合
+    为租户创建独立的向量集合（带缓存）
     每个租户的数据完全隔离
 
     Args:
@@ -71,15 +115,23 @@ def create_document_collection(tenant_id: int) -> Chroma:
     Returns:
         该租户的 Chroma 实例
     """
+    # 检查缓存
+    if tenant_id in _chroma_stores:
+        return _chroma_stores[tenant_id]
+
     # 集合名称格式: tenant_{id}_documents
     collection_name = f"tenant_{tenant_id}_documents"
     persist_dir = os.path.join(settings.chroma_persist_dir, collection_name)
     os.makedirs(persist_dir, exist_ok=True)
 
-    return Chroma(
+    store = Chroma(
         persist_directory=persist_dir,
         embedding_function=get_embedding_model()
     )
+
+    # 缓存
+    _chroma_stores[tenant_id] = store
+    return store
 
 
 def add_documents(

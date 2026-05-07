@@ -23,6 +23,7 @@ settings = get_settings()
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
     file: UploadFile = File(...),
+    is_global: bool = False,
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -30,9 +31,11 @@ async def upload_document(
     上传文档接口
 
     支持格式: .pdf, .docx, .doc, .txt
+    is_global=True 时上传到全局共享租户 (仅 admin 可用)
 
     Args:
         file: 上传的文件
+        is_global: 是否上传到全局共享
         current_user: 当前登录用户
         db: 数据库会话
 
@@ -40,17 +43,27 @@ async def upload_document(
         文档信息
 
     Raises:
-        HTTPException: 不支持的文件类型
+        HTTPException: 不支持的文件类型 或 权限不足
     """
     # 检查文件类型
     file_ext = os.path.splitext(file.filename)[1].lower()
-    allowed_exts = [".pdf", ".docx", ".doc", ".txt"]
+    allowed_exts = [".pdf", ".docx", ".doc", ".txt", ".md"]
 
     if file_ext not in allowed_exts:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"不支持的文件类型: {file_ext}"
         )
+
+    # 全局共享校验：只有 admin 可以上传到全局租户
+    if is_global and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有管理员可以上传到全局共享"
+        )
+
+    # 确定租户 ID
+    tenant_id = 0 if is_global else current_user.tenant_id
 
     # 生成唯一文件名，防止冲突
     file_id = str(uuid.uuid4())
@@ -68,12 +81,12 @@ async def upload_document(
     # 创建文档记录
     doc = await doc_service.create_document(
         db=db,
-        tenant_id=current_user.tenant_id,
-        title=file.filename.replace(file_ext, ""),  # 使用原始文件名作为标题
+        tenant_id=tenant_id,
+        title=file.filename.replace(file_ext, ""),
         file_name=file.filename,
         file_path=file_path,
         file_size=len(content),
-        file_type=file_ext[1:],  # 去掉点号
+        file_type=file_ext[1:],
         user_id=current_user.id
     )
     await db.commit()
@@ -139,7 +152,7 @@ async def list_documents(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取文档列表
+    获取文档列表（包含全局共享文档）
 
     Args:
         skip: 跳过条数
@@ -150,7 +163,7 @@ async def list_documents(
     Returns:
         文档列表和总数
     """
-    return await doc_service.get_documents(db, current_user.tenant_id, skip, limit)
+    return await doc_service.get_documents(db, current_user.tenant_id, skip, limit, include_global=True)
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -160,7 +173,7 @@ async def get_document(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取文档详情
+    获取文档详情（支持查看全局共享文档）
 
     Args:
         document_id: 文档 ID
@@ -170,12 +183,27 @@ async def get_document(
     Returns:
         文档详情
     """
-    doc = await doc_service.get_document_by_id(db, document_id, current_user.tenant_id)
+    # 支持查看全局文档：不限制 tenant_id，直接查询
+    from sqlalchemy import select
+    from models.db_models import Document
+    result = await db.execute(
+        select(Document).where(Document.id == document_id)
+    )
+    doc = result.scalar_one_or_none()
+
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文档不存在"
         )
+
+    # 非全局文档，需要校验租户权限
+    if doc.tenant_id != 0 and doc.tenant_id != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权查看该文档"
+        )
+
     return DocumentResponse.model_validate(doc)
 
 
@@ -198,13 +226,42 @@ async def delete_document(
     Returns:
         删除结果
     """
-    success = await doc_service.delete_document(db, document_id, current_user.tenant_id)
+    # 获取文档信息（不限制 tenant_id，因为可能删除全局文档）
+    from sqlalchemy import select
+    from models.db_models import Document
+    result = await db.execute(
+        select(Document).where(Document.id == document_id)
+    )
+    doc = result.scalar_one_or_none()
+
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="文档不存在"
+        )
+
+    # 全局租户文档权限校验：只有 admin 可以删除
+    if doc.tenant_id == 0 and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有管理员可以删除全局共享文档"
+        )
+
+    # 非全局文档，只能删除自己租户的
+    if doc.tenant_id != 0 and doc.tenant_id != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权删除其他租户的文档"
+        )
+
+    # 执行删除
+    success = await doc_service.delete_document(db, document_id, doc.tenant_id)
     await db.commit()
 
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="文档不存在"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="删除失败"
         )
 
     return ApiResponse.success(message="删除成功")

@@ -1,6 +1,12 @@
 <template>
   <div class="message-renderer">
-    <div v-if="data.answer" class="answer-summary">
+    <!-- 纯文本显示（无底部分割线） -->
+    <div v-if="data.rawText" class="raw-text">
+      {{ data.rawText }}
+    </div>
+    
+    <!-- JSON 结构化回答 -->
+    <div v-else-if="data.answer" class="answer-summary">
       {{ data.answer }}
     </div>
     
@@ -49,6 +55,11 @@ defineProps({
 <style scoped>
 .message-renderer {
   line-height: 1.6;
+}
+
+.raw-text {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .answer-summary {

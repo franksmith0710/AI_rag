@@ -42,7 +42,8 @@ async def create_session(
 async def get_session_by_id(
     db: AsyncSession,
     session_id: int,
-    tenant_id: int
+    tenant_id: int,
+    user_id: Optional[int] = None
 ) -> Optional[SessionModel]:
     """
     根据 ID 获取会话
@@ -51,15 +52,20 @@ async def get_session_by_id(
         db: 数据库会话
         session_id: 会话 ID
         tenant_id: 租户 ID (用于权限校验)
+        user_id: 用户 ID (可选，用于更严格的权限校验)
 
     Returns:
         会话对象或 None
     """
+    conditions = [
+        SessionModel.id == session_id,
+        SessionModel.tenant_id == tenant_id
+    ]
+    if user_id is not None:
+        conditions.append(SessionModel.user_id == user_id)
+
     result = await db.execute(
-        select(SessionModel).where(
-            SessionModel.id == session_id,
-            SessionModel.tenant_id == tenant_id
-        )
+        select(SessionModel).where(*conditions)
     )
     return result.scalar_one_or_none()
 
@@ -121,7 +127,8 @@ async def get_user_sessions(
 async def delete_session(
     db: AsyncSession,
     session_id: int,
-    tenant_id: int
+    tenant_id: int,
+    user_id: int
 ) -> bool:
     """
     删除会话及所有消息
@@ -130,11 +137,12 @@ async def delete_session(
         db: 数据库会话
         session_id: 会话 ID
         tenant_id: 租户 ID
+        user_id: 用户 ID
 
     Returns:
         是否删除成功
     """
-    session = await get_session_by_id(db, session_id, tenant_id)
+    session = await get_session_by_id(db, session_id, tenant_id, user_id)
     if not session:
         return False
 
@@ -162,6 +170,7 @@ async def update_session_title(
     db: AsyncSession,
     session_id: int,
     tenant_id: int,
+    user_id: int,
     title: str
 ) -> Optional[SessionModel]:
     """
@@ -171,12 +180,13 @@ async def update_session_title(
         db: 数据库会话
         session_id: 会话 ID
         tenant_id: 租户 ID
+        user_id: 用户 ID
         title: 新标题
 
     Returns:
         更新后的会话对象
     """
-    session = await get_session_by_id(db, session_id, tenant_id)
+    session = await get_session_by_id(db, session_id, tenant_id, user_id)
     if not session:
         return None
 
@@ -227,7 +237,8 @@ async def add_message(
 async def get_session_messages(
     db: AsyncSession,
     session_id: int,
-    tenant_id: int
+    tenant_id: int,
+    user_id: int
 ) -> List[MessageResponse]:
     """
     获取会话的所有消息
@@ -236,11 +247,12 @@ async def get_session_messages(
         db: 数据库会话
         session_id: 会话 ID
         tenant_id: 租户 ID
+        user_id: 用户 ID
 
     Returns:
         消息列表
     """
-    session = await get_session_by_id(db, session_id, tenant_id)
+    session = await get_session_by_id(db, session_id, tenant_id, user_id)
     if not session:
         return []
 
