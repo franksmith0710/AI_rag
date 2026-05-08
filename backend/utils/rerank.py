@@ -1,6 +1,7 @@
 """
 重排序模块
-使用本地 Ollama rerank 模型 (qllama/bge-reranker-v2-m3) 进行重排序
+使用本地 Ollama qllama/bge-reranker-v2-m3 模型进行重排序
+通过 embedding + 余弦相似度计算相关性分数
 """
 import httpx
 import numpy as np
@@ -11,11 +12,11 @@ warnings.filterwarnings("ignore")
 
 logger = logging.getLogger("rerank")
 
-_reranker_model_name = "qllama/bge-reranker-v2-m3"
+_reranker_model_name = "qllama/bge-reranker-v2-m3:latest"
 
 
 def _get_embedding(text: str) -> List[float]:
-    """使用本地 Ollama 获取 embedding"""
+    """使用 qllama/bge-reranker-v2-m3 获取 embedding"""
     with httpx.Client(timeout=120.0) as client:
         response = client.post(
             "http://127.0.0.1:11434/api/embed",

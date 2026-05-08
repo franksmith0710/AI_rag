@@ -9,7 +9,7 @@ import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
-from models.schemas import DocumentResponse, DocumentListResponse
+from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse
 from services import doc_service
 from api.auth import get_current_user
 from models.schemas import UserResponse
@@ -265,3 +265,53 @@ async def delete_document(
         )
 
     return ApiResponse.success(message="删除成功")
+
+
+@router.get("/{document_id}/chunks", response_model=DocumentChunkListResponse)
+async def get_document_chunks(
+    document_id: int,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取文档的所有 chunks
+
+    权限逻辑：
+    - 全局文档(tenant_id=0)：所有用户可查看
+    - 租户文档：仅该租户用户可查看
+    """
+    from sqlalchemy import select
+    from models.db_models import Document, DocumentChunk
+
+    result = await db.execute(
+        select(Document).where(Document.id == document_id)
+    )
+    doc = result.scalar_one_or_none()
+
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="文档不存在"
+        )
+
+    # 权限校验：tenant_id=0 或 tenant_id=当前用户.tenant_id
+    if doc.tenant_id != 0 and doc.tenant_id != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权查看该文档的 chunks"
+        )
+
+    # 查询所有 chunks，按 chunk_index 排序
+    result = await db.execute(
+        select(DocumentChunk)
+        .where(DocumentChunk.document_id == document_id)
+        .order_by(DocumentChunk.chunk_index)
+    )
+    chunks = result.scalars().all()
+
+    items = [
+        {"chunk_index": c.chunk_index, "text": c.text}
+        for c in chunks
+    ]
+
+    return DocumentChunkListResponse(total=len(items), items=items)

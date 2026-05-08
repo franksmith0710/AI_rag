@@ -46,8 +46,16 @@
           {{ formatTime(row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
+          <el-button
+            size="small"
+            type="info"
+            @click="viewChunks(row)"
+            :disabled="row.status !== 'completed'"
+          >
+            查看Chunks
+          </el-button>
           <el-button
             v-if="row.status !== 'completed'"
             size="small"
@@ -77,6 +85,34 @@
       :current-page="currentPage"
       @current-change="handlePageChange"
     />
+
+    <el-dialog
+      v-model="chunksDialogVisible"
+      :title="`查看Chunks: ${currentDocTitle}`"
+      width="80%"
+      destroy-on-close
+    >
+      <div class="chunks-container">
+        <div class="chunks-list">
+          <div
+            v-for="chunk in chunks"
+            :key="chunk.chunk_index"
+            class="chunk-item"
+            :class="{ active: selectedChunkIndex === chunk.chunk_index }"
+            @click="selectedChunkIndex = chunk.chunk_index"
+          >
+            <div class="chunk-index">#{{ chunk.chunk_index + 1 }}</div>
+            <div class="chunk-preview">{{ chunk.text.length > 50 ? chunk.text.slice(0, 50) + '...' : chunk.text }}</div>
+          </div>
+        </div>
+        <div class="chunk-content">
+          <div v-if="chunks.length > 0" class="chunk-text">
+            <pre>{{ chunks.find(c => c.chunk_index === selectedChunkIndex)?.text || '' }}</pre>
+          </div>
+          <div v-else class="no-chunks">暂无Chunks数据</div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -97,6 +133,10 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const activeTab = ref('my')
+const chunksDialogVisible = ref(false)
+const currentDocTitle = ref('')
+const chunks = ref([])
+const selectedChunkIndex = ref(0)
 
 const isAdmin = computed(() => userStore.user?.role === 'admin')
 
@@ -203,6 +243,22 @@ const goToChat = () => {
   router.push('/chat')
 }
 
+const viewChunks = async (doc) => {
+  currentDocTitle.value = doc.title
+  chunksDialogVisible.value = true
+  chunks.value = []
+  selectedChunkIndex.value = 0
+  try {
+    const response = await api.get(`/api/documents/${doc.id}/chunks`)
+    chunks.value = response.data.items
+    if (chunks.value.length > 0) {
+      selectedChunkIndex.value = chunks.value[0].chunk_index
+    }
+  } catch (error) {
+    ElMessage.error('获取Chunks失败')
+  }
+}
+
 onMounted(async () => {
   await userStore.fetchCurrentUser()
   await fetchDocuments()
@@ -240,5 +296,73 @@ onMounted(async () => {
 .pagination {
   margin-top: 20px;
   justify-content: center;
+}
+
+.chunks-container {
+  display: flex;
+  height: 500px;
+  gap: 20px;
+}
+
+.chunks-list {
+  width: 300px;
+  overflow-y: auto;
+  border-right: 1px solid #eee;
+  padding-right: 10px;
+}
+
+.chunk-item {
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #f5f7fa;
+  transition: all 0.2s;
+}
+
+.chunk-item:hover {
+  background: #e6f0ff;
+}
+
+.chunk-item.active {
+  background: #409eff;
+  color: white;
+}
+
+.chunk-item.active .chunk-preview {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.chunk-index {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.chunk-preview {
+  font-size: 12px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chunk-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.chunk-text pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.no-chunks {
+  text-align: center;
+  color: #999;
+  margin-top: 50px;
 }
 </style>

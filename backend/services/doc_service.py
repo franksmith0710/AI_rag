@@ -98,7 +98,7 @@ async def process_document(
         )
     except Exception as e:
         logger.error(f"向量库存储失败: {e}")
-        return False
+        raise RuntimeError(f"向量库存储失败: {e}")
 
     # 3. 向量存储成功后，存储分块到数据库
     for idx, chunk_text in enumerate(chunks):

@@ -99,6 +99,21 @@ class DocumentStatusUpdate(BaseModel):
     chunk_count: Optional[int] = 0
 
 
+class DocumentChunkResponse(BaseModel):
+    """文档分块响应"""
+    chunk_index: int
+    text: str
+
+    class Config:
+        from_attributes = True
+
+
+class DocumentChunkListResponse(BaseModel):
+    """文档分块列表响应"""
+    total: int
+    items: List[DocumentChunkResponse]
+
+
 # ==================== 消息相关 ====================
 
 class MessageResponse(BaseModel):

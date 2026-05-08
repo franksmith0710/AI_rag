@@ -52,7 +52,7 @@
             :class="['message', msg.role]"
           >
             <div class="message-content">
-              <MessageRenderer :data="parseContent(msg.content)" />
+              <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
               <div v-if="msg.sources && msg.sources.length" class="message-sources">
                 <div class="sources-title">参考文档：</div>
                 <div v-for="(source, idx) in msg.sources" :key="idx" class="source-item">
@@ -97,8 +97,9 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import api from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete } from '@element-plus/icons-vue'
-import MessageRenderer from '../components/MessageRenderer.vue'
+import { Delete, Folder, SwitchButton } from '@element-plus/icons-vue'
+import { marked } from 'marked'
+
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -111,21 +112,9 @@ const inputMessage = ref('')
 const loading = ref(false)
 const messagesScroll = ref(null)
 
-// 解析消息内容为 JSON 或纯文本
-const parseContent = (content) => {
-  if (!content) return { answer: '', sections: [], sources: [] }
-  try {
-    const parsed = JSON.parse(content)
-    // 确保有必要的字段
-    return {
-      answer: parsed.answer || '',
-      sections: parsed.sections || [],
-      sources: parsed.sources || []
-    }
-  } catch {
-    // 非 JSON，原样返回为纯文本（无底部分割线）
-    return { answer: '', sections: [], sources: [], rawText: content }
-  }
+const renderMarkdown = (text) => {
+  if (!text) return ''
+  return marked(text)
 }
 
 const fetchSessions = async () => {
@@ -197,97 +186,71 @@ const sendMessage = async () => {
   loading.value = true
 
   try {
-    // 添加用户消息
     messages.value.push({ role: 'user', content: userMessage })
 
-    // 添加空的助手消息占位（纯文本格式）
-    const assistantMsg = { role: 'assistant', content: '', sources: [] }
+    const assistantMsg = {
+      role: 'assistant',
+      content: '',
+      sources: []
+    }
     messages.value.push(assistantMsg)
+    scrollToBottom()
 
-    // 使用流式接口
-    const response = await fetch('/api/chat/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({
-        session_id: currentSessionId.value,
-        message: userMessage
-      })
-    })
+    const response = await fetch(
+      '/api/chat',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          session_id: currentSessionId.value,
+          message: userMessage
+        })
+      }
+    )
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
-    let done = false
-    let buffer = '' // 缓冲区，处理被截断的 SSE 行
 
-    // 收集流式数据
-    let answerText = ''
-    let sourcesData = []
+    while (true) {
+      const { done: streamDone, value } = await reader.read()
+      if (streamDone) break
 
-    while (!done) {
-      const { value, done: isDone } = await reader.read()
-      done = isDone
-      if (value) {
-        const text = decoder.decode(value)
-        // 将新文本追加到缓冲区
-        buffer += text
-        
-        // 按行分割，保留最后一行（可能是不完整的）
-        const lines = buffer.split('\n')
-        buffer = lines.pop()
-        
-        // 处理所有完整的行
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim() // 去掉 'data: ' 并 trim
-            if (data === '[DONE]') {
-              done = true
+      const text = decoder.decode(value, { stream: true })
+      const lines = text.split('\n')
+
+      let eventType = null
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim()
+          continue
+        }
+
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+
+            if (eventType === 'done') {
+              assistantMsg.sources = data.sources || []
               break
             }
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.type === 'answer_chunk') {
-                // 流式接收答案片段
-                answerText += parsed.content
-                assistantMsg.content = answerText
-              } else if (parsed.type === 'answer_done') {
-                // 答案完成
-                answerText = parsed.full_content || answerText
-              } else if (parsed.type === 'sources') {
-                sourcesData = parsed.data
-                assistantMsg.sources = sourcesData
-              } else if (parsed.type === 'error') {
-                ElMessage.error(parsed.content)
-              }
-              // 触发响应式更新
-              messages.value = [...messages.value]
+
+            if (eventType === 'text' && data.content) {
+              assistantMsg.content += data.content
               scrollToBottom()
-            } catch (e) {
-              console.error('SSE 解析错误:', e, 'data:', data)
             }
+          } catch (e) {
+            console.error('解析 SSE 数据失败:', e)
           }
         }
       }
+
+      if (assistantMsg.sources.length > 0) break
     }
-    
-    // 处理缓冲区中剩余的数据（最后的完整行）
-    if (buffer.startsWith('data: ')) {
-      const data = buffer.slice(6).trim()
-      if (data && data !== '[DONE]') {
-        try {
-          const parsed = JSON.parse(data)
-          if (parsed.type === 'answer_chunk') {
-            answerText += parsed.content
-            assistantMsg.content = answerText
-          }
-          messages.value = [...messages.value]
-        } catch (e) {
-          console.error('缓冲区解析错误:', e)
-        }
-      }
-    }
+
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '发送消息失败')
   } finally {
@@ -515,5 +478,99 @@ onMounted(async () => {
 
 .chat-input .el-button {
   height: fit-content;
+}
+
+/* Markdown 渲染样式 */
+.message-text :deep(h2) {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 12px 0 8px;
+  color: #303133;
+  border-bottom: 1px solid #ebeef5;
+  padding-bottom: 4px;
+}
+
+.message-text :deep(p) {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.message-text :deep(strong) {
+  font-weight: bold;
+  color: #303133;
+}
+
+.message-text :deep(em) {
+  font-style: italic;
+  color: #606266;
+}
+
+.message-text :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.message-text :deep(th),
+.message-text :deep(td) {
+  border: 1px solid #dcdfe6;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.message-text :deep(th) {
+  background: #f5f7fa;
+  font-weight: bold;
+  color: #303133;
+}
+
+.message-text :deep(td) {
+  color: #606266;
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.message-text :deep(li) {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+.message-text :deep(code) {
+  background: #f5f7fa;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.message-text :deep(pre) {
+  background: #f5f7fa;
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.message-text :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+
+.message-text :deep(blockquote) {
+  border-left: 3px solid #409eff;
+  margin: 10px 0;
+  padding-left: 12px;
+  color: #606266;
+}
+
+.message-text :deep(hr) {
+  border: none;
+  border-top: 1px solid #ebeef5;
+  margin: 12px 0;
 }
 </style>
