@@ -1,5 +1,4 @@
 services:
-  # PostgreSQL 数据库
   postgres:
     image: postgres:16-alpine
     container_name: rag-postgres
@@ -17,7 +16,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis 缓存
   redis:
     image: redis:7-alpine
     container_name: rag-redis
@@ -30,6 +28,46 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: rag-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/vector_store:/app/vector_store
+      - ./backend/logs:/app/logs
+      - D:/hf_models:/models
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: rag-frontend
+    ports:
+      - "80:80"
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:

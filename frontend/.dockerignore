@@ -1,0 +1,12 @@
+node_modules/
+.npm
+.cache/
+dist/
+build/
+.git/
+.gitignore
+.env
+.env.local
+*.log
+.DS_Store
+Thumbs.db

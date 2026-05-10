@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     langchain_tracing_v2: bool = True  # 从 .env 读取（LANGCHAIN_TRACING_V2）
 
     # ==================== RAG 配置 ====================
-    reranker_model_path: str = "D:/hf_models/BAAI/bge-reranker-v2-m3"
+    reranker_model_path: str = "/models/BAAI/bge-reranker-v2-m3"
     reranker_threshold: float = 0.1
     llm_rewrite_model: str = "deepseek-chat"
 

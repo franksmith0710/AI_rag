@@ -20,7 +20,7 @@ settings = get_settings()
 _chroma_stores: Dict[int, Chroma] = {}
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-EMBEDDING_MODEL_PATH = "D:/hf_models/BAAI/bge-m3"
+EMBEDDING_MODEL_PATH = os.getenv("EMBEDDING_MODEL_PATH", "/models/BAAI/bge-m3")
 
 
 class LocalEmbedding:
