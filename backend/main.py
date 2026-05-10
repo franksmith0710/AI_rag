@@ -34,7 +34,13 @@ async def lifespan(app: FastAPI):
 
     from utils.rerank import _get_reranker
     from core.chroma_conn import get_embedding_model
-    logger.info("预热模型中...")
+
+    logger.info("预热 Jieba 分词器...")
+    import jieba
+    jieba.initialize()
+    logger.info("Jieba 预热完成")
+
+    logger.info("预热 GPU 模型...")
     _get_reranker()
     get_embedding_model()
     logger.info("模型预热完成")
@@ -90,7 +96,7 @@ async def health_check():
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",  # 监听所有网络接口
-        port=8000,      # 端口 8000
-        reload=True     # 开发模式热重载
+        host="0.0.0.0",
+        port=8000,
+        reload=True
     )

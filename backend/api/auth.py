@@ -94,11 +94,15 @@ async def register(
             detail="用户名已存在"
         )
 
-    # 如果没有指定租户，创建新租户
-    # admin 角色使用 tenant_id=0（全局共享租户），不创建新租户
-    if user_data.tenant_id == 0 and user_data.role != "admin":
+    # 根据角色设置租户
+    # admin 角色使用 tenant_id=0（全局共享租户）
+    # user 角色自动创建新租户
+    if user_data.role == "admin":
+        user_data.tenant_id = 0
+    else:
         tenant = await auth_service.create_tenant(db, f"租户_{user_data.username}")
         user_data.tenant_id = tenant.id
+        user_data.role = "user"
 
     # 创建用户
     user = await auth_service.create_user(db, user_data)

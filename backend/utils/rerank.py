@@ -79,16 +79,3 @@ def rerank_documents(
     except Exception as e:
         logger.warning(f"Rerank 失败: {e}，使用原始排序")
         return [(i, 1.0) for i in range(len(documents))]
-
-
-def rerank_with_scores(
-    query: str,
-    documents: List[str],
-    scores: List[float]
-) -> List[Tuple[int, float]]:
-    """结合初始分数进行重排序（保留原有接口）"""
-    if not documents:
-        return []
-    doc_scores = list(enumerate(scores))
-    doc_scores.sort(key=lambda x: x[1], reverse=True)
-    return doc_scores[:len(documents)]

@@ -23,8 +23,6 @@ class Settings(BaseSettings):
     deepseek_model: str = ""  # 从 .env 读取
 
     # ==================== 数据库配置 ====================
-    db_mode: str = "sqlite"  # 数据库模式: sqlite(开发) / postgresql(生产)
-    sqlite_db_path: str = "./data/rag.db"  # SQLite 数据库文件路径
 
     # PostgreSQL 配置 (生产环境使用)
     postgres_host: str = "localhost"
@@ -76,19 +74,14 @@ class Settings(BaseSettings):
     llm_rewrite_model: str = "deepseek-chat"
 
     @property
-    def sqlite_url(self) -> str:
-        """返回 SQLite 数据库连接 URL"""
-        return f"sqlite:///{self.sqlite_db_path}"
-
-    @property
     def postgres_url(self) -> str:
-        """返回 PostgreSQL 异步连接 URL (用于 aiosqlite/asyncpg)"""
+        """返回 PostgreSQL 异步连接 URL (用于 asyncpg)"""
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     @property
     def postgres_sync_url(self) -> str:
         """返回 PostgreSQL 同步连接 URL (用于 SQLAlchemy)"""
-        return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}?sslmode=disable"
 
     class Config:
         env_file = str(BASE_DIR / ".env")

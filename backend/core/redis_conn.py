@@ -26,8 +26,8 @@ async def get_redis() -> Optional[redis.Redis]:
     """
     global redis_client
 
-    # 开发模式(sqLite)不使用 Redis
-    if settings.db_mode == "sqlite":
+    # 开发模式(Chroma)不使用 Redis，生产模式使用 Redis
+    if settings.vector_store == "chroma":
         return None
 
     try:

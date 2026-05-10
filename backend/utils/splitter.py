@@ -57,19 +57,3 @@ def split_text(text: str, chunk_size: int = 650, chunk_overlap: int = 180) -> Li
     """
     splitter = create_text_splitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     return splitter.split_text(text)
-
-
-def split_documents(documents: List[str], chunk_size: int = 650, chunk_overlap: int = 180) -> List[str]:
-    """
-    批量分割多个文档
-
-    Args:
-        documents: 文档列表
-        chunk_size: 分块大小
-        chunk_overlap: 分块重叠
-
-    Returns:
-        所有文档的分块结果
-    """
-    splitter = create_text_splitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    return splitter.split_documents(documents)

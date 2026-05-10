@@ -29,10 +29,10 @@ class TenantResponse(BaseModel):
 
 class UserCreate(BaseModel):
     """创建用户请求"""
-    tenant_id: int  # 所属租户 ID
     username: str  # 用户名
     password: str  # 密码
-    role: str = "user"  # 角色，默认普通用户
+    role: str = "user"  # 角色：admin / user，默认普通用户
+    tenant_id: int = None  # 可选，管理员可指定租户 ID
 
 
 class UserLogin(BaseModel):

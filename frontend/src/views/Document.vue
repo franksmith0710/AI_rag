@@ -3,6 +3,9 @@
     <div class="document-header">
       <h2>知识库管理</h2>
       <div class="header-actions">
+        <span v-if="userStore.user" class="user-info">
+          {{ userStore.user.username }} | {{ userStore.user.role === 'admin' ? 'Admin' : 'User' }}
+        </span>
         <el-button @click="goToChat">
           <el-icon><ChatDotRound /></el-icon>
           返回对话
@@ -286,7 +289,17 @@ onMounted(async () => {
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
+}
+
+.header-actions .user-info {
+  margin-right: auto;
+  padding: 6px 12px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #333;
 }
 
 .doc-tabs {

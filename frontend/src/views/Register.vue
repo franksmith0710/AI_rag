@@ -31,6 +31,12 @@
             @keyup.enter="handleRegister"
           />
         </el-form-item>
+        <el-form-item prop="role">
+          <el-select v-model="form.role" placeholder="选择角色" style="width: 100%">
+            <el-option label="普通用户" value="user" />
+            <el-option label="管理员" value="admin" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button
             type="primary"
@@ -66,7 +72,8 @@ const loading = ref(false)
 const form = reactive({
   username: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  role: 'user'
 })
 
 const validateConfirmPassword = (rule, value, callback) => {
@@ -100,7 +107,7 @@ const handleRegister = async () => {
 
     loading.value = true
     try {
-      await userStore.register(form.username, form.password)
+      await userStore.register(form.username, form.password, form.role)
       ElMessage.success('注册成功')
       router.push('/chat')
     } catch (error) {

@@ -8,7 +8,7 @@ import os
 import logging
 import torch
 from typing import Optional, List, Dict, Any
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from transformers import AutoTokenizer, AutoModel
 from .config import get_settings
 from .logging_config import setup_logging
@@ -17,7 +17,6 @@ import hashlib
 logger = setup_logging("chroma_conn")
 settings = get_settings()
 
-_chroma_store: Optional[Chroma] = None
 _chroma_stores: Dict[int, Chroma] = {}
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -96,25 +95,6 @@ def get_embedding_model() -> LocalEmbedding:
     return LocalEmbedding()
 
 
-def get_chroma_store() -> Chroma:
-    """
-    获取默认的 Chroma 存储实例
-    用于兼容旧代码，新代码建议使用 create_document_collection
-    """
-    global _chroma_store
-
-    if _chroma_store is None:
-        persist_dir = settings.chroma_persist_dir
-        os.makedirs(persist_dir, exist_ok=True)
-
-        _chroma_store = Chroma(
-            persist_directory=persist_dir,
-            embedding_function=get_embedding_model()
-        )
-
-    return _chroma_store
-
-
 def create_document_collection(tenant_id: int) -> Chroma:
     """
     为租户创建独立的向量集合（带缓存）
@@ -149,7 +129,6 @@ def add_documents(
         ids = [hashlib.md5(text.encode()).hexdigest() for text in texts]
 
     collection.add_texts(texts=texts, metadatas=metadatas, ids=ids)
-    collection.persist()
 
 
 def similarity_search(
@@ -184,13 +163,5 @@ def delete_documents(tenant_id: int, document_id: int):
 
     try:
         collection.delete(where={"document_id": str(document_id)})
-        collection.persist()
     except Exception as e:
         logger.error(f"删除文档向量失败: {e}")
-
-
-def get_embedding_dim() -> int:
-    """获取嵌入向量的维度 (BGE-m3 为 1024)"""
-    model = get_embedding_model()
-    test_embedding = model.embed_query("test")
-    return len(test_embedding)

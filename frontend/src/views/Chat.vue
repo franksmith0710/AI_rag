@@ -42,6 +42,9 @@
     <div class="chat-main">
       <div class="chat-header">
         <span>{{ currentSession?.title || '请选择会话' }}</span>
+        <span v-if="userStore.user" class="user-info">
+          {{ userStore.user.username }} | {{ userStore.user.role === 'admin' ? 'Admin' : 'User' }}
+        </span>
       </div>
 
       <el-scrollbar class="chat-messages" ref="messagesScroll">
@@ -56,7 +59,17 @@
               <div v-if="msg.sources && msg.sources.length" class="message-sources">
                 <div class="sources-title">参考文档：</div>
                 <div v-for="(source, idx) in msg.sources" :key="idx" class="source-item">
-                  {{ source.text?.substring(0, 100) }}...
+                  <span :class="{ 'text-expanded': expandedSources[idx] }">
+                    {{ expandedSources[idx] ? source.text : (source.text?.substring(0, 300) || '') }}
+                    <span v-if="!expandedSources[idx] && source.text?.length > 300">...</span>
+                  </span>
+                  <span
+                    v-if="source.text?.length > 100"
+                    class="expand-btn"
+                    @click="toggleSourceExpand(idx)"
+                  >
+                    {{ expandedSources[idx] ? '收起' : '展开' }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -111,6 +124,11 @@ const messages = ref([])
 const inputMessage = ref('')
 const loading = ref(false)
 const messagesScroll = ref(null)
+const expandedSources = ref({})
+
+const toggleSourceExpand = (idx) => {
+  expandedSources.value[idx] = !expandedSources.value[idx]
+}
 
 const renderMarkdown = (text) => {
   if (!text) return ''
@@ -211,45 +229,10 @@ const sendMessage = async () => {
       }
     )
 
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-
-    while (true) {
-      const { done: streamDone, value } = await reader.read()
-      if (streamDone) break
-
-      const text = decoder.decode(value, { stream: true })
-      const lines = text.split('\n')
-
-      let eventType = null
-
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          eventType = line.slice(7).trim()
-          continue
-        }
-
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
-
-            if (eventType === 'done') {
-              assistantMsg.sources = data.sources || []
-              break
-            }
-
-            if (eventType === 'text' && data.content) {
-              assistantMsg.content += data.content
-              scrollToBottom()
-            }
-          } catch (e) {
-            console.error('解析 SSE 数据失败:', e)
-          }
-        }
-      }
-
-      if (assistantMsg.sources.length > 0) break
-    }
+    const data = await response.json()
+    assistantMsg.content = data.content
+    assistantMsg.sources = data.sources || []
+    scrollToBottom()
 
   } catch (error) {
     ElMessage.error(error.response?.data?.message || '发送消息失败')
@@ -378,10 +361,22 @@ onMounted(async () => {
 }
 
 .chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 15px 20px;
   border-bottom: 1px solid #e4e7ed;
   font-size: 16px;
   font-weight: bold;
+}
+
+.chat-header .user-info {
+  padding: 6px 12px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: normal;
+  color: #333;
 }
 
 .chat-messages {
@@ -444,6 +439,17 @@ onMounted(async () => {
 .source-item {
   color: #909399;
   padding: 4px 0;
+}
+
+.source-item .expand-btn {
+  color: #409eff;
+  cursor: pointer;
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+.source-item .expand-btn:hover {
+  text-decoration: underline;
 }
 
 .loading {

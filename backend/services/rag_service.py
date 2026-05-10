@@ -3,10 +3,9 @@ RAG 检索与问答服务模块
 负责：1) 混合检索 (向量+BM25) 2) 重排序 3) LLM 答案生成
 核心流程：用户问题 → 检索 → 重排序 → 生成答案
 """
+import asyncio
 import os
 import logging
-import re
-import json
 import time
 from typing import List, Dict, Any, Tuple, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,8 +41,8 @@ STREAM_BUFFER_INTERVAL_MS = 150
 # 来源数量限制
 MAX_SOURCES_COUNT = 3
 
-REWRITE_HISTORY_TURNS = 5   # 改写：只取用户历史问句（不含assistant）
-LLM_HISTORY_TURNS = 5       # LLM生成：最近5轮，保证流畅对话
+REWRITE_HISTORY_TURNS = 4   # 改写：只取用户历史问句（不含assistant，不含当前）
+LLM_HISTORY_TURNS = 4       # LLM生成：最近4轮历史（不含当前问题）
 
 settings = get_settings()
 
@@ -261,7 +260,7 @@ async def generate_answer(
         sources = []
         for chunk in context_chunks[:MAX_SOURCES_COUNT]:
             sources.append({
-                "text": chunk["text"][:200] + "..." if len(chunk["text"]) > 200 else chunk["text"],
+                "text": chunk["text"],
                 "document_id": chunk["document_id"],
                 "score": chunk.get("rerank_score", chunk.get("score", 0))
             })
@@ -281,7 +280,7 @@ async def chat_with_rag(
     db: AsyncSession
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
-    RAG 问答（流式）
+    RAG 问答
 
     Returns:
         AsyncGenerator[Dict[str, Any], None] - 透传 generate_answer 的字典类型
@@ -319,11 +318,12 @@ async def chat_with_rag(
         if messages_list else []
     )
 
-    # 给【LLM生成】用：取最近5轮原始对话
+    # 给【LLM生成】用：取最近4轮历史对话（排除当前消息）
+    # 当前消息已在 api/chat.py 中保存到DB，所以取 [-5:-1] 而不是 [-4:]
     history_for_llm = [
         {"role": msg.role, "content": msg.content}
-        for msg in messages_list[-LLM_HISTORY_TURNS:]
-    ] if messages_list else []
+        for msg in messages_list[-(LLM_HISTORY_TURNS + 1):-1]
+    ] if len(messages_list) > LLM_HISTORY_TURNS + 1 else []
 
     original_query = query
 
@@ -360,11 +360,6 @@ async def chat_with_rag(
 
     relevant_results = filtered
     logger.info(f"chat_with_rag: 阈值过滤后保留 {len(relevant_results)} 条结果")
-
-    # TODO: 后续替换为四层防御校验
-    # 第二层：实体关键词硬匹配
-    # 第三层：摘要语义校验
-    # 第四层：阈值分数
 
     logger.info("chat_with_rag: 开始调用 LLM")
 

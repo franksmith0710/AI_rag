@@ -23,12 +23,11 @@ export const useUserStore = defineStore('user', () => {
     return response.data
   }
 
-  const register = async (username, password) => {
+  const register = async (username, password, role = 'user') => {
     const response = await api.post('/api/auth/register', {
       username,
       password,
-      tenant_id: 0,
-      role: 'user'
+      role
     })
     setToken(response.data.access_token)
     setUser(response.data.user)

@@ -4,9 +4,8 @@
 """
 import json
 import logging
-from typing import Dict, Any, AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +25,7 @@ async def chat(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """流式问答"""
+    """问答"""
     session = await session_service.get_session_by_id(
         db=db,
         session_id=chat_data.session_id,
@@ -46,53 +45,51 @@ async def chat(
     )
     await db.flush()
 
-    async def event_generator():
-        full_answer = ""
-        sources = []
-        generator = rag_service.chat_with_rag(
-            query=chat_data.message,
-            session_id=chat_data.session_id,
-            tenant_id=current_user.tenant_id,
-            db=db
-        )
-        
-        try:
-            async for item in generator:
-                item_type = item.get("type")
-                
-                if item_type == "text":
-                    content = item.get("content", "")
-                    full_answer += content
-                    yield f"event: text\ndata: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
-                    
-                elif item_type == "done":
-                    sources = item.get("sources", [])
-                    
-                elif item_type == "error":
-                    error_content = item.get("content", "服务异常")
-                    full_answer += error_content
-                    yield f"event: text\ndata: {json.dumps({'content': error_content}, ensure_ascii=False)}\n\n"
-                    yield f"event: done\ndata: {json.dumps({'sources': []}, ensure_ascii=False)}\n\n"
-                    return
-                    
-        except Exception as e:
-            logger.error(f"流式生成异常: {e}")
-            yield f"event: text\ndata: {json.dumps({'content': '服务异常'}, ensure_ascii=False)}\n\n"
-            yield f"event: done\ndata: {json.dumps({'sources': []}, ensure_ascii=False)}\n\n"
-            return
+    full_answer = ""
+    sources = []
 
-        await session_service.add_message(
-            db=db,
-            session_id=chat_data.session_id,
-            role="assistant",
-            content=full_answer,
-            sources=sources
-        )
-        await db.commit()
+    generator = rag_service.chat_with_rag(
+        query=chat_data.message,
+        session_id=chat_data.session_id,
+        tenant_id=current_user.tenant_id,
+        db=db
+    )
 
-        yield f"event: done\ndata: {json.dumps({'sources': sources}, ensure_ascii=False)}\n\n"
+    try:
+        async for item in generator:
+            item_type = item.get("type")
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+            if item_type == "text":
+                content = item.get("content", "")
+                full_answer += content
+                logger.info(f"生成回答: {content[:20]}...")
+
+            elif item_type == "done":
+                sources = item.get("sources", [])
+
+            elif item_type == "error":
+                error_content = item.get("content", "服务异常")
+                full_answer += error_content
+
+    except Exception as e:
+        logger.error(f"生成回答异常: {e}")
+        full_answer = "服务暂时异常，请稍后再试。"
+
+    await session_service.add_message(
+        db=db,
+        session_id=chat_data.session_id,
+        role="assistant",
+        content=full_answer,
+        sources=sources
+    )
+    await db.commit()
+
+    logger.info(f"回答完成, sources count: {len(sources)}")
+
+    return Response(
+        content=json.dumps({"content": full_answer, "sources": sources}, ensure_ascii=False),
+        media_type="application/json"
+    )
 
 
 @router.get("/history/{session_id}")

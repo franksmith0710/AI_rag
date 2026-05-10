@@ -33,6 +33,9 @@ wheels/
 .ruff_cache/
 .pyright/
 
+# Backend logs
+backend/logs/
+
 # Virtual Environment
 venv/
 ENV/

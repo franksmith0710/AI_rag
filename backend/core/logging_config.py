@@ -12,7 +12,7 @@ settings = get_settings()
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
-LOG_LEVEL = logging.DEBUG if settings.db_mode == "sqlite" else logging.INFO
+LOG_LEVEL = logging.INFO
 
 def setup_logging(name: str = None) -> logging.Logger:
     """
