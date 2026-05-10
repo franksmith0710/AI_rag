@@ -11,6 +11,7 @@ import time
 from typing import List, Dict, Any, Tuple, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from rank_bm25 import BM25Okapi
@@ -19,6 +20,7 @@ import jieba
 from models.db_models import DocumentChunk, Session as SessionModel, Message, Document
 from core.config import get_settings
 from core.logging_config import setup_logging
+from utils.query_rewrite import is_greeting_query, rewrite_query
 
 logger = setup_logging("rag_service")
 from core.chroma_conn import similarity_search
@@ -27,7 +29,21 @@ from utils.rerank import rerank_documents
 # ==================== RAG 检索参数 ====================
 HYBRID_SEARCH_TOP_K = 10
 RERANK_TOP_K = 3
-MIN_RELEVANCE_SCORE = 0.1
+
+# LLM 生成参数
+LLM_TEMPERATURE = 0.3
+LLM_MAX_TOKENS = 1500
+LLM_TIMEOUT = 60
+
+# 流式输出参数
+STREAM_BUFFER_MIN_CHARS = 50
+STREAM_BUFFER_INTERVAL_MS = 150
+
+# 来源数量限制
+MAX_SOURCES_COUNT = 3
+
+REWRITE_HISTORY_TURNS = 5   # 改写：只取用户历史问句（不含assistant）
+LLM_HISTORY_TURNS = 5       # LLM生成：最近5轮，保证流畅对话
 
 settings = get_settings()
 
@@ -82,7 +98,9 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
             return []
 
         chunks_result = await db.execute(
-            select(DocumentChunk).where(DocumentChunk.document_id.in_(document_ids))
+            select(DocumentChunk)
+            .where(DocumentChunk.document_id.in_(document_ids))
+            .options(joinedload(DocumentChunk.document))
         )
         all_chunks = chunks_result.scalars().all()
         if not all_chunks:
@@ -100,7 +118,8 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
                 "document_id": chunk_list[idx].document_id,
                 "chunk_index": chunk_list[idx].chunk_index,
                 "text": chunk_list[idx].text,
-                "score": score
+                "score": score,
+                "tenant_id": chunk_list[idx].document.tenant_id if chunk_list[idx].document else tenant_id
             })
 
         results.sort(key=lambda x: x["score"], reverse=True)
@@ -120,11 +139,11 @@ async def hybrid_search(query: str, tenant_id: int, db: AsyncSession, top_k: int
     rrf_scores = {}
 
     for rank, r in enumerate(vector_results, 1):
-        key = (r["document_id"], r["chunk_index"])
+        key = (r.get("tenant_id", tenant_id), r["document_id"], r["chunk_index"])
         rrf_scores[key] = {**r, "source": "vector", "rrf_score": 1 / (RRF_K + rank)}
 
     for rank, r in enumerate(bm25_results, 1):
-        key = (r["document_id"], r["chunk_index"])
+        key = (r.get("tenant_id", tenant_id), r["document_id"], r["chunk_index"])
         if key in rrf_scores:
             rrf_scores[key]["rrf_score"] += 1 / (RRF_K + rank)
             rrf_scores[key]["source"] = "hybrid"
@@ -162,44 +181,55 @@ async def generate_answer(
     query: str,
     context_chunks: List[Dict[str, Any]],
     conversation_history: List[Dict[str, str]] = None
-) -> AsyncGenerator[str, None]:
-    """生成答案（流式）"""
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    生成答案（流式）
+    
+    Returns:
+        AsyncGenerator[dict, None] - yield 字典类型:
+        - {"type": "text", "content": "..."} 文本片段
+        - {"type": "done", "sources": [...]} 完成标记
+        - {"type": "error", "content": "..."} 错误信息
+    """
     if conversation_history is None:
         conversation_history = []
 
     if not context_chunks:
-        yield "未找到相关内容。"
+        yield {"type": "error", "content": "未找到相关内容。"}
+        yield {"type": "done", "sources": []}
         return
+
+    SYSTEM_PROMPT = """你是专业、严格的企业知识库助手。
+只根据参考资料回答，不编造、不扩展、不脑补。
+无相关内容时，输出：当前文档未收录该问题
+格式要求：## 一级标题，- 列要点，段落之间空一行。"""
 
     context_text = "\n\n".join([
         f"【参考{i+1}】{chunk['text']}"
         for i, chunk in enumerate(context_chunks)
     ])
 
-    history_text = ""
-    if conversation_history:
-        for msg in conversation_history[-10:]:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            history_text += f"{role}: {content}\n"
+    def format_history(history, max_turns=5):
+        lines = []
+        for msg in history[-max_turns:]:
+            role = "用户" if msg["role"] == "user" else "助手"
+            lines.append(f"{role}：{msg['content']}")
+        return "\n".join(lines)
 
-    prompt = f"""{'历史对话：\n' + history_text if history_text else ''}请严格按照文档回答，**只输出答案，不要多余解释、不要开场白、不要结尾客套话**。
+    clean_history = format_history(conversation_history, LLM_HISTORY_TURNS)
 
-【格式强制规则】
-- 用 ## 做一级标题
-- 用 - 列要点
-- 数字、等级、比例用表格
-- 段落之间空一行
-- 禁止乱加空格
-- 禁止重复内容
-- 禁止废话
+    prompt = f"""{SYSTEM_PROMPT}
 
-参考资料：
+【历史对话】
+{clean_history}
+
+【当前问题】
+{query}
+
+【参考资料】
 {context_text}
 
-用户问题：{query}
-
-输出答案：
+请回答：
 """
 
     try:
@@ -207,12 +237,12 @@ async def generate_answer(
             model="deepseek-chat",
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
-            temperature=0.7,
-            max_tokens=1000,
-            timeout=60
+            temperature=LLM_TEMPERATURE,
+            max_tokens=LLM_MAX_TOKENS,
+            timeout=LLM_TIMEOUT
         )
         messages = [
-            SystemMessage(content="你是简洁、专业、格式严格整齐的企业知识库助手。只输出答案，无多余内容。"),
+            SystemMessage(content="你是专业、格式严格整齐的企业知识库助手。严格基于参考资料回答，保持内容完整性，不过度精简，不编造内容。"),
             HumanMessage(content=prompt)
         ]
 
@@ -221,26 +251,27 @@ async def generate_answer(
         async for chunk in llm.astream(messages):
             buffer += chunk.content
             now = time.time()
-            if len(buffer) >= 60 or (now - last_yield_time) * 1000 >= 100:
-                yield buffer
+            if len(buffer) >= STREAM_BUFFER_MIN_CHARS or (now - last_yield_time) * 1000 >= STREAM_BUFFER_INTERVAL_MS:
+                yield {"type": "text", "content": buffer}
                 buffer = ""
                 last_yield_time = now
         if buffer:
-            yield buffer
+            yield {"type": "text", "content": buffer}
 
         sources = []
-        for chunk in context_chunks[:3]:
+        for chunk in context_chunks[:MAX_SOURCES_COUNT]:
             sources.append({
                 "text": chunk["text"][:200] + "..." if len(chunk["text"]) > 200 else chunk["text"],
                 "document_id": chunk["document_id"],
                 "score": chunk.get("rerank_score", chunk.get("score", 0))
             })
 
-        yield f"event: done\ndata: {json.dumps({'sources': sources}, ensure_ascii=False)}\n\n"
+        yield {"type": "done", "sources": sources}
 
     except Exception as e:
         logger.error(f"LLM生成失败: {e}")
-        yield "服务暂时异常，请稍后再试。"
+        yield {"type": "error", "content": "服务暂时异常，请稍后再试。"}
+        yield {"type": "done", "sources": []}
 
 
 async def chat_with_rag(
@@ -248,8 +279,13 @@ async def chat_with_rag(
     session_id: int,
     tenant_id: int,
     db: AsyncSession
-) -> AsyncGenerator[str, None]:
-    """RAG 问答（流式）"""
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    RAG 问答（流式）
+
+    Returns:
+        AsyncGenerator[Dict[str, Any], None] - 透传 generate_answer 的字典类型
+    """
     logger.info(f"chat_with_rag: 开始处理 query={query}, session_id={session_id}")
 
     session_result = await db.execute(select(SessionModel).where(SessionModel.id == session_id))
@@ -257,46 +293,93 @@ async def chat_with_rag(
 
     if not session:
         logger.warning(f"chat_with_rag: 会话不存在 session_id={session_id}")
-        yield "会话不存在"
+        yield {"type": "error", "content": "会话不存在"}
+        yield {"type": "done", "sources": []}
         return
 
-    logger.info(f"chat_with_rag: 开始检索 query={query}")
-    search_results = await hybrid_search(query, tenant_id, db, top_k=HYBRID_SEARCH_TOP_K)
-    logger.info(f"chat_with_rag: 检索完成, 找到 {len(search_results)} 条结果")
-
-    if not search_results:
-        logger.warning("chat_with_rag: 未找到相关文档")
-        yield "未找到相关文档，请先上传文档到知识库。"
+    if is_greeting_query(query):
+        logger.info(f"chat_with_rag: 问候语跳过检索")
+        yield {"type": "text", "content": "你好，有什么可以帮您的？"}
+        yield {"type": "done", "sources": []}
         return
-
-    logger.info("chat_with_rag: 开始重排序")
-    reranked_results = await rerank_results(query, search_results, top_k=RERANK_TOP_K)
-    logger.info(f"chat_with_rag: 重排序完成, 保留 {len(reranked_results)} 条结果")
-
-    if reranked_results and reranked_results[0].get("rerank_score", 0) < MIN_RELEVANCE_SCORE:
-        logger.info(f"chat_with_rag: 检索结果相关性过低，跳过 LLM (rerank_score={reranked_results[0].get('rerank_score', 0):.4f})")
-        yield "未找到相关文档"
-        return
-
-    logger.info("chat_with_rag: 开始调用 LLM")
 
     messages_result = await db.execute(
         select(Message).where(Message.session_id == session_id).order_by(Message.created_at)
     )
     messages_list = list(messages_result.scalars().all())
 
-    conversation_history = [
-        {"role": msg.role, "content": msg.content}
-        for msg in messages_list[-10:]
-    ]
+    # ===================== 历史拆分 =====================
+    # 给【改写+检索】用：只取最近5条用户问句（剔除assistant）
+    history_for_rewrite = (
+        [
+            {"role": msg.role, "content": msg.content}
+            for msg in messages_list
+            if msg.role == "user"
+        ][-REWRITE_HISTORY_TURNS:]
+        if messages_list else []
+    )
 
-    generator = generate_answer(query, reranked_results, conversation_history)
+    # 给【LLM生成】用：取最近5轮原始对话
+    history_for_llm = [
+        {"role": msg.role, "content": msg.content}
+        for msg in messages_list[-LLM_HISTORY_TURNS:]
+    ] if messages_list else []
+
+    original_query = query
+
+    # ===================== 执行改写（真正用history） =====================
+    rewritten_query = rewrite_query(original_query, history_for_rewrite)
+    if rewritten_query != original_query:
+        logger.info(f"chat_with_rag: Query 改写 '{original_query}' -> '{rewritten_query}'")
+        search_query = rewritten_query
+    else:
+        logger.info(f"chat_with_rag: Query 无需改写")
+        search_query = original_query
+
+    logger.info(f"chat_with_rag: 开始检索 query={search_query}")
+    search_results = await hybrid_search(search_query, tenant_id, db, top_k=HYBRID_SEARCH_TOP_K)
+    logger.info(f"chat_with_rag: 检索完成, 找到 {len(search_results)} 条结果")
+
+    if not search_results:
+        logger.warning("chat_with_rag: 未找到相关文档")
+        yield {"type": "error", "content": "未找到相关文档，请先上传文档到知识库。"}
+        yield {"type": "done", "sources": []}
+        return
+
+    logger.info(f"chat_with_rag: 开始重排 rerank_top_k={RERANK_TOP_K}")
+    reranked = await rerank_results(search_query, search_results, RERANK_TOP_K)
+
+    threshold = settings.reranker_threshold
+    filtered = [r for r in reranked if r.get("rerank_score", 0) >= threshold]
+
+    if not filtered:
+        logger.warning(f"chat_with_rag: 重排结果均低于阈值 {threshold}")
+        yield {"type": "error", "content": "当前文档未收录该问题"}
+        yield {"type": "done", "sources": []}
+        return
+
+    relevant_results = filtered
+    logger.info(f"chat_with_rag: 阈值过滤后保留 {len(relevant_results)} 条结果")
+
+    # TODO: 后续替换为四层防御校验
+    # 第二层：实体关键词硬匹配
+    # 第三层：摘要语义校验
+    # 第四层：阈值分数
+
+    logger.info("chat_with_rag: 开始调用 LLM")
+
+    generator = generate_answer(
+        query=original_query,
+        context_chunks=relevant_results,
+        conversation_history=history_for_llm
+    )
     try:
-        async for content in generator:
-            yield content
+        async for item in generator:
+            yield item
     except Exception as e:
         logger.error(f"LLM 流式异常: {e}")
-        yield "服务暂时异常，请稍后再试。"
+        yield {"type": "error", "content": "服务暂时异常，请稍后再试。"}
+        yield {"type": "done", "sources": []}
         return
 
     logger.info("chat_with_rag: 完成")

@@ -54,9 +54,7 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "rag-documents"
 
-    # ==================== Ollama 配置 ====================
-    ollama_host: str = "http://127.0.0.1:11434"  # 强制覆盖系统 env
-    ollama_embed_model: str = "bge-m3"  # 强制覆盖系统 env
+    
 
     # ==================== JWT 配置 ====================
     jwt_secret_key: str = "your-secret-key-change-in-production"  # JWT 密钥
@@ -71,6 +69,11 @@ class Settings(BaseSettings):
     langchain_endpoint: str = ""  # 从 .env 读取（LANGCHAIN_ENDPOINT）
     langchain_project: str = "AI_rag"  # 从 .env 读取（LANGCHAIN_PROJECT）
     langchain_tracing_v2: bool = True  # 从 .env 读取（LANGCHAIN_TRACING_V2）
+
+    # ==================== RAG 配置 ====================
+    reranker_model_path: str = "D:/hf_models/BAAI/bge-reranker-v2-m3"
+    reranker_threshold: float = 0.1
+    llm_rewrite_model: str = "deepseek-chat"
 
     @property
     def sqlite_url(self) -> str:
@@ -88,17 +91,11 @@ class Settings(BaseSettings):
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     class Config:
-        env_file = str(BASE_DIR / ".env")  # 从项目根目录的 .env 文件加载环境变量
+        env_file = str(BASE_DIR / ".env")
         env_file_encoding = "utf-8"
-        extra = "ignore"  # 忽略额外字段
-        
-    def model_post_init(self, __context):
-        # 强制覆盖 Ollama 主机地址
-        if os.environ.get("OLLAMA_HOST"):
-            self.ollama_host = "http://127.0.0.1:11434"
+        extra = "ignore"
 
 
-# 使用 lru_cache 缓存配置实例，避免重复读取
 @lru_cache()
 def get_settings() -> Settings:
     """

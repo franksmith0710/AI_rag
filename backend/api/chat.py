@@ -4,6 +4,7 @@
 """
 import json
 import logging
+from typing import Dict, Any, AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
@@ -56,21 +57,28 @@ async def chat(
         )
         
         try:
-            async for content in generator:
-                if content.startswith("event: done\n"):
-                    try:
-                        json_str = content.replace("event: done\ndata: ", "").replace("\n\n", "")
-                        data = json.loads(json_str)
-                        sources = data.get("sources", [])
-                    except Exception:
-                        pass
-                    continue
-
-                full_answer += content
-                yield f"event: text\ndata: {json.dumps({'content': content})}\n\n"
+            async for item in generator:
+                item_type = item.get("type")
+                
+                if item_type == "text":
+                    content = item.get("content", "")
+                    full_answer += content
+                    yield f"event: text\ndata: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+                    
+                elif item_type == "done":
+                    sources = item.get("sources", [])
+                    
+                elif item_type == "error":
+                    error_content = item.get("content", "服务异常")
+                    full_answer += error_content
+                    yield f"event: text\ndata: {json.dumps({'content': error_content}, ensure_ascii=False)}\n\n"
+                    yield f"event: done\ndata: {json.dumps({'sources': []}, ensure_ascii=False)}\n\n"
+                    return
+                    
         except Exception as e:
             logger.error(f"流式生成异常: {e}")
-            yield f"event: text\ndata: {json.dumps({'content': '服务异常'})}\n\n"
+            yield f"event: text\ndata: {json.dumps({'content': '服务异常'}, ensure_ascii=False)}\n\n"
+            yield f"event: done\ndata: {json.dumps({'sources': []}, ensure_ascii=False)}\n\n"
             return
 
         await session_service.add_message(
@@ -82,7 +90,7 @@ async def chat(
         )
         await db.commit()
 
-        yield f"event: done\ndata: {json.dumps({'sources': sources})}\n\n"
+        yield f"event: done\ndata: {json.dumps({'sources': sources}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

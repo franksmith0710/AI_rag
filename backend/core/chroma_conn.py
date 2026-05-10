@@ -1,13 +1,15 @@
 """
 Chroma 向量数据库连接模块
 负责文档向量的存储和检索
-使用 Ollama Embedding
+使用本地 BGE-M3 模型进行 Embedding
+支持 GPU 加速
 """
 import os
 import logging
-import httpx
-from typing import Optional, List, Dict, Any, Union
+import torch
+from typing import Optional, List, Dict, Any
 from langchain_community.vectorstores import Chroma
+from transformers import AutoTokenizer, AutoModel
 from .config import get_settings
 from .logging_config import setup_logging
 import hashlib
@@ -16,79 +18,88 @@ logger = setup_logging("chroma_conn")
 settings = get_settings()
 
 _chroma_store: Optional[Chroma] = None
-_embedding_model = None
 _chroma_stores: Dict[int, Chroma] = {}
 
-
-def _get_ollama_embedding(text: str) -> List[float]:
-    """直接使用 httpx 调用 Ollama API 获取 embedding"""
-    ollama_url = settings.ollama_host
-    if not ollama_url.startswith("http"):
-        ollama_url = f"http://{ollama_url}"
-    # 确保使用 IPv4 地址 (Windows)
-    if "localhost" in ollama_url:
-        ollama_url = ollama_url.replace("localhost", "127.0.0.1")
-    
-    model = settings.ollama_embed_model or "bge-m3"
-    
-    with httpx.Client(timeout=60.0) as client:
-        response = client.post(
-            f"{ollama_url}/api/embeddings",
-            json={"model": model, "prompt": text}
-        )
-        response.raise_for_status()
-        data = response.json()
-        return data["embedding"]
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+EMBEDDING_MODEL_PATH = "D:/hf_models/BAAI/bge-m3"
 
 
-def get_embedding_model():
+class LocalEmbedding:
     """
-    获取自定义 Embedding 模型
-    使用直接调用方式避免 langchain_ollama 连接问题
+    本地 BGE-M3 Embedding 模型
+    直接使用 transformers 加载模型，支持 GPU 加速
     """
-    global _embedding_model
-    
-    if _embedding_model is not None:
-        return _embedding_model
-    
-    class CustomOllamaEmbeddings:
-        """自定义 Ollama Embedding 包装"""
-        
-        def embed_documents(self, texts: List[str]) -> List[List[float]]:
-            logger.info(f"embed_documents: 接收 {len(texts)} 个文本")
-            results = []
-            for i, t in enumerate(texts):
-                try:
-                    emb = _get_ollama_embedding(t)
-                    logger.info(f"embed_documents[{i}]: 成功, 向量长度={len(emb)}")
-                    results.append(emb)
-                except Exception as e:
-                    logger.error(f"embed_documents[{i}]: 失败 - {e}")
-                    results.append([])
-            return results
-        
-        def embed_query(self, text: str) -> List[float]:
-            logger.info(f"embed_query: 文本长度={len(text)}")
+
+    _instance = None
+    _tokenizer = None
+    _model = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._init_model()
+        return cls._instance
+
+    def _init_model(self):
+        if LocalEmbedding._model is None:
+            logger.info(f"加载本地 Embedding 模型: {EMBEDDING_MODEL_PATH}, 设备: {DEVICE}")
+            LocalEmbedding._tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
+            LocalEmbedding._model = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH)
+            if DEVICE == "cuda":
+                LocalEmbedding._model = LocalEmbedding._model.half()
+            LocalEmbedding._model.to(DEVICE)
+            LocalEmbedding._model.eval()
+            logger.info("Embedding 模型加载完成")
+
+    @staticmethod
+    def _mean_pooling(model_output, attention_mask):
+        token_embeddings = model_output[0]
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        logger.info(f"embed_documents: 接收 {len(texts)} 个文本")
+        results = []
+        for i, t in enumerate(texts):
             try:
-                result = _get_ollama_embedding(text)
-                logger.info(f"embed_query: 成功, 向量长度={len(result)}")
-                return result
+                inputs = LocalEmbedding._tokenizer(t, return_tensors='pt', max_length=512, truncation=True, padding=True)
+                inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+                with torch.no_grad():
+                    outputs = LocalEmbedding._model(**inputs)
+                    embedding = self._mean_pooling(outputs, inputs['attention_mask'])
+                    emb = embedding.squeeze().float().cpu().tolist()
+                results.append(emb)
+                logger.info(f"embed_documents[{i}]: 成功, 向量长度={len(emb)}")
             except Exception as e:
-                logger.error(f"embed_query: 失败 - {e}")
-                return []
-    
-    _embedding_model = CustomOllamaEmbeddings()
-    logger.info(f"使用 Ollama Embedding: {settings.ollama_embed_model or 'bge-m3'}")
-    return _embedding_model
+                logger.error(f"embed_documents[{i}]: 失败 - {e}")
+                results.append([])
+        return results
+
+    def embed_query(self, text: str) -> List[float]:
+        logger.info(f"embed_query: 文本长度={len(text)}")
+        try:
+            inputs = LocalEmbedding._tokenizer(text, return_tensors='pt', max_length=512, truncation=True, padding=True)
+            inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+            with torch.no_grad():
+                outputs = LocalEmbedding._model(**inputs)
+                embedding = self._mean_pooling(outputs, inputs['attention_mask'])
+                result = embedding.squeeze().float().cpu().tolist()
+            logger.info(f"embed_query: 成功, 向量长度={len(result)}")
+            return result
+        except Exception as e:
+            logger.error(f"embed_query: 失败 - {e}")
+            return []
+
+
+def get_embedding_model() -> LocalEmbedding:
+    """获取 Embedding 模型单例"""
+    return LocalEmbedding()
 
 
 def get_chroma_store() -> Chroma:
     """
     获取默认的 Chroma 存储实例
     用于兼容旧代码，新代码建议使用 create_document_collection
-
-    Returns:
-        Chroma 实例
     """
     global _chroma_store
 
@@ -108,18 +119,10 @@ def create_document_collection(tenant_id: int) -> Chroma:
     """
     为租户创建独立的向量集合（带缓存）
     每个租户的数据完全隔离
-
-    Args:
-        tenant_id: 租户 ID
-
-    Returns:
-        该租户的 Chroma 实例
     """
-    # 检查缓存
     if tenant_id in _chroma_stores:
         return _chroma_stores[tenant_id]
 
-    # 集合名称格式: tenant_{id}_documents
     collection_name = f"tenant_{tenant_id}_documents"
     persist_dir = os.path.join(settings.chroma_persist_dir, collection_name)
     os.makedirs(persist_dir, exist_ok=True)
@@ -129,7 +132,6 @@ def create_document_collection(tenant_id: int) -> Chroma:
         embedding_function=get_embedding_model()
     )
 
-    # 缓存
     _chroma_stores[tenant_id] = store
     return store
 
@@ -140,24 +142,14 @@ def add_documents(
     metadatas: List[Dict[str, Any]],
     ids: List[str] = None
 ):
-    """
-    添加文档到向量库
-
-    Args:
-        tenant_id: 租户 ID
-        texts: 文档文本列表
-        metadatas: 元数据列表 (如 document_id, chunk_index 等)
-        ids: 可选的文档 ID 列表，默认使用 MD5 哈希
-    """
+    """添加文档到向量库"""
     collection = create_document_collection(tenant_id)
 
     if ids is None:
-        # 使用文本 MD5 哈希作为 ID
         ids = [hashlib.md5(text.encode()).hexdigest() for text in texts]
 
-    # 添加文本到向量库
     collection.add_texts(texts=texts, metadatas=metadatas, ids=ids)
-    collection.persist()  # 持久化保存
+    collection.persist()
 
 
 def similarity_search(
@@ -166,21 +158,9 @@ def similarity_search(
     k: int = 10,
     filter: Dict[str, Any] = None
 ) -> List[Dict[str, Any]]:
-    """
-    向量相似度搜索
-
-    Args:
-        tenant_id: 租户 ID
-        query: 查询文本
-        k: 返回结果数量
-        filter: 可选的过滤条件
-
-    Returns:
-        搜索结果列表，每项包含 text, metadata, score
-    """
+    """向量相似度搜索"""
     collection = create_document_collection(tenant_id)
 
-    # similarity_search_with_score 返回 (Document, score) 元组列表
     docs = collection.similarity_search_with_score(
         query=query,
         k=k,
@@ -190,26 +170,19 @@ def similarity_search(
     results = []
     for doc, score in docs:
         results.append({
-            "text": doc.page_content,  # 文档内容
-            "metadata": doc.metadata,  # 元数据
-            "score": score  # 相似度分数 (Chroma 返回的是距离，需转换)
+            "text": doc.page_content,
+            "metadata": doc.metadata,
+            "score": score
         })
 
     return results
 
 
 def delete_documents(tenant_id: int, document_id: int):
-    """
-    删除指定文档的所有 chunks
-
-    Args:
-        tenant_id: 租户 ID
-        document_id: 文档 ID
-    """
+    """删除指定文档的所有 chunks"""
     collection = create_document_collection(tenant_id)
 
     try:
-        # 根据 document_id 过滤删除
         collection.delete(where={"document_id": str(document_id)})
         collection.persist()
     except Exception as e:
@@ -217,13 +190,7 @@ def delete_documents(tenant_id: int, document_id: int):
 
 
 def get_embedding_dim() -> int:
-    """
-    获取嵌入向量的维度
-    用于初始化向量数据库字段
-
-    Returns:
-        向量维度 (BGE-m3 为 1024)
-    """
+    """获取嵌入向量的维度 (BGE-m3 为 1024)"""
     model = get_embedding_model()
     test_embedding = model.embed_query("test")
     return len(test_embedding)

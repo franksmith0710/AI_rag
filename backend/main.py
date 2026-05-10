@@ -24,13 +24,23 @@ async def lifespan(app: FastAPI):
 
     启动时:
     - 初始化数据库表结构
+    - 预热 GPU 模型
 
     关闭时:
     - 关闭 Redis 连接
     """
     await init_db()
     logger.info("Database initialized")
+
+    from utils.rerank import _get_reranker
+    from core.chroma_conn import get_embedding_model
+    logger.info("预热模型中...")
+    _get_reranker()
+    get_embedding_model()
+    logger.info("模型预热完成")
+
     yield
+
     await close_redis()
     logger.info("Redis closed")
 
