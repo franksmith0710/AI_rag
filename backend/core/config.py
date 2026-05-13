@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # ==================== Redis 配置 ====================
     redis_host: str = "localhost"
     redis_port: int = 6379
+    redis_password: str = ""
 
     # ==================== 向量库配置 ====================
     vector_store: str = "chroma"  # 向量库模式: chroma(开发) / milvus(生产)

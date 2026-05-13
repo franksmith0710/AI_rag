@@ -12,8 +12,8 @@ import json
 logger = setup_logging("redis_conn")
 settings = get_settings()
 
-redis_client: Optional[redis.Redis] = None  # Redis 客户端单例
-_memory_cache = {}  # 内存缓存兜底方案
+redis_client: Optional[redis.Redis] = None
+_memory_cache = {}
 
 
 async def get_redis() -> Optional[redis.Redis]:
@@ -32,13 +32,15 @@ async def get_redis() -> Optional[redis.Redis]:
 
     try:
         if redis_client is None:
-            redis_client = redis.Redis(
-                host=settings.redis_host,
-                port=settings.redis_port,
-                decode_responses=True,  # 返回字符串而非字节
-                encoding="utf-8"
-            )
-            # 测试连接
+            redis_kwargs = {
+                "host": settings.redis_host,
+                "port": settings.redis_port,
+                "decode_responses": True,
+                "encoding": "utf-8"
+            }
+            if settings.redis_password:
+                redis_kwargs["password"] = settings.redis_password
+            redis_client = redis.Redis(**redis_kwargs)
             await redis_client.ping()
         return redis_client
     except Exception as e:
