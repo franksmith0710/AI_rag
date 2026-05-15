@@ -137,6 +137,24 @@ def add_documents(
             }
         )
 
+    try:
+        collection.count()
+    except Exception:
+        logger.warning(f"Collection {collection_name} 损坏，正在重建...")
+        try:
+            client.delete_collection(name=collection_name)
+        except Exception:
+            pass
+        collection = client.create_collection(
+            name=collection_name,
+            metadata={
+                "hnsw:space": "cosine",
+                "hnsw:construction_ef": 200,
+                "hnsw:search_ef": 200,
+                "hnsw:M": 32
+            }
+        )
+
     embeddings = get_embedding_model().embed_documents(texts)
     valid_texts = []
     valid_metadatas = []
@@ -165,8 +183,31 @@ def add_documents(
         )
         logger.info(f"成功添加 {len(valid_texts)} 个文档到向量库")
     except Exception as e:
-        logger.error(f"Chroma 添加文档失败: {type(e).__name__}: {e}", exc_info=True)
-        raise RuntimeError(f"Chroma 添加文档失败: {type(e).__name__}: {e}")
+        logger.error(f"Chroma 添加文档失败: {type(e).__name__}: {e}, 正在尝试重建 collection...")
+        try:
+            client.delete_collection(name=collection_name)
+        except Exception:
+            pass
+        collection = client.create_collection(
+            name=collection_name,
+            metadata={
+                "hnsw:space": "cosine",
+                "hnsw:construction_ef": 200,
+                "hnsw:search_ef": 200,
+                "hnsw:M": 32
+            }
+        )
+        try:
+            collection.upsert(
+                ids=valid_ids,
+                embeddings=valid_embeddings,
+                documents=valid_texts,
+                metadatas=valid_metadatas
+            )
+            logger.info(f"重建 collection 后成功添加 {len(valid_texts)} 个文档")
+        except Exception as e2:
+            logger.error(f"重建后仍然失败: {type(e2).__name__}: {e2}", exc_info=True)
+            raise RuntimeError(f"Chroma 添加文档失败: {type(e2).__name__}: {e2}")
 
 
 def similarity_search(
