@@ -22,7 +22,7 @@ os.environ.setdefault("EMBEDDING_ONNX_PATH", r"D:\hf_models\BAAI\bge-m3-onnx\bge
 os.environ.setdefault("EMBEDDING_MODEL_PATH", r"D:\hf_models\BAAI\bge-m3")
 os.environ.setdefault("RERANKER_ONNX_PATH", r"D:\hf_models\BAAI\bge-reranker-v2-m3-onnx\bge-reranker-v2-m3.onnx")
 os.environ.setdefault("RERANKER_MODEL_PATH", r"D:\hf_models\BAAI\bge-reranker-v2-m3")
-os.environ.setdefault("DEEPSEEK_API_KEY", "***REMOVED***")
+os.environ.setdefault("DEEPSEEK_API_KEY", "")
 os.environ.setdefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
 os.environ.setdefault("DEEPSEEK_MODEL", "deepseek-v4-flash")
 os.environ.setdefault("CHROMA_PERSIST_DIR", r"D:\School\AI_rag\backend\vector_store\chroma")
