@@ -9,7 +9,7 @@ from typing import List
 
 def create_text_splitter(
     chunk_size: int = 650,
-    chunk_overlap: int = 180,
+    chunk_overlap: int = 100,
     separators: List[str] = None
 ) -> RecursiveCharacterTextSplitter:
     """
@@ -37,7 +37,7 @@ def create_text_splitter(
     )
 
 
-def split_text(text: str, chunk_size: int = 650, chunk_overlap: int = 180) -> List[str]:
+def split_text(text: str, chunk_size: int = 650, chunk_overlap: int = 100) -> List[str]:
     """
     将文本分割成 chunks
 

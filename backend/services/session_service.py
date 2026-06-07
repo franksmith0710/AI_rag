@@ -6,7 +6,7 @@
 import json
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from models.db_models import Session as SessionModel, Message
 from models.schemas import SessionResponse, SessionListResponse, MessageResponse
 
@@ -146,13 +146,10 @@ async def delete_session(
     if not session:
         return False
 
-    # 删除所有消息
-    messages_result = await db.execute(
-        select(Message).where(Message.session_id == session_id)
+    # 批量删除所有消息
+    await db.execute(
+        delete(Message).where(Message.session_id == session_id)
     )
-    messages = messages_result.scalars().all()
-    for msg in messages:
-        await db.delete(msg)
 
     # 删除会话
     await db.delete(session)
@@ -271,7 +268,7 @@ async def get_session_messages(
     ) for m in messages]
 
 
-async def cache_session_to_redis(session_id: int, tenant_id: int, messages: List[dict]):
+async def cache_session_to_redis(session_id: int, tenant_id: int, messages: List[dict], version: int):
     """
     将会话消息缓存到 Redis (可选功能)
 
@@ -279,27 +276,51 @@ async def cache_session_to_redis(session_id: int, tenant_id: int, messages: List
         session_id: 会话 ID
         tenant_id: 租户 ID
         messages: 消息列表 (dict 格式)
+        version: 会话当前 message_version，用于缓存一致性校验
     """
     from core.redis_conn import set_cached
     cache_key = f"session:{tenant_id}:{session_id}"
-    cache_value = json.dumps(messages[-10:] if len(messages) > 10 else messages)
-    await set_cached(cache_key, cache_value, 3600)
+    cache_value = json.dumps({
+        "version": version,
+        "messages": messages[-10:] if len(messages) > 10 else messages,
+    })
+    await set_cached(cache_key, cache_value)
 
 
-async def get_cached_session_from_redis(session_id: int, tenant_id: int) -> Optional[List[dict]]:
+async def get_cached_session_from_redis(session_id: int, tenant_id: int) -> Optional[dict]:
     """
-    从 Redis 获取缓存的会话消息
+    从 Redis 获取缓存的会话消息 (含版本号)
 
     Args:
         session_id: 会话 ID
         tenant_id: 租户 ID
 
     Returns:
-        缓存的消息列表或 None
+        {"version": int, "messages": List[dict]} 或 None
     """
     from core.redis_conn import get_cached
     cache_key = f"session:{tenant_id}:{session_id}"
     cached = await get_cached(cache_key)
     if cached:
         return json.loads(cached)
+    return None
+
+
+async def cache_summary_to_redis(session_id: int, tenant_id: int, cut_count: int, summary: str):
+    """缓存会话摘要"""
+    from core.redis_conn import set_cached
+    key = f"session_summary:{tenant_id}:{session_id}"
+    value = json.dumps({"cut_count": cut_count, "summary": summary})
+    await set_cached(key, value)
+
+
+async def get_cached_summary_from_redis(session_id: int, tenant_id: int, cut_count: int) -> Optional[str]:
+    """获取缓存摘要，cut_count 不一致则返回 None"""
+    from core.redis_conn import get_cached
+    key = f"session_summary:{tenant_id}:{session_id}"
+    cached = await get_cached(key)
+    if cached:
+        data = json.loads(cached)
+        if data.get("cut_count") == cut_count:
+            return data["summary"]
     return None

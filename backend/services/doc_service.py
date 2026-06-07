@@ -78,8 +78,19 @@ async def process_document(
     Returns:
         处理是否成功
     """
+    logger.info(f"开始处理文档 document_id={document_id}, 文本长度={len(text_content)}")
+
+    # 0. 空文本保护
+    if not text_content or not text_content.strip():
+        logger.warning(f"文档 {document_id} 文本内容为空，跳过处理")
+        doc = (await db.execute(select(Document).where(Document.id == document_id))).scalar_one()
+        doc.status = "failed"
+        await db.flush()
+        return False
+
     # 1. 文本分块
-    chunks = split_text(text_content, chunk_size=650, chunk_overlap=180)
+    chunks = split_text(text_content)
+    logger.info(f"分块完成: {len(chunks)} 个 chunks")
 
     # 2. 先存储到向量库 (Chroma)，失败则直接返回
     try:
@@ -91,14 +102,19 @@ async def process_document(
             }
             for idx in range(len(chunks))
         ]
+        logger.info(f"写入向量库: {len(chunks)} 条, tenant={tenant_id}")
         add_documents(
             tenant_id=tenant_id,
             texts=chunks,
             metadatas=metadatas
         )
+        logger.info(f"向量库写入成功")
     except Exception as e:
         err_msg = str(e) if str(e) else repr(e)
         logger.error(f"向量库存储失败: {type(e).__name__} - {err_msg}", exc_info=True)
+        doc = (await db.execute(select(Document).where(Document.id == document_id))).scalar_one()
+        doc.status = "failed"
+        await db.flush()
         raise RuntimeError(f"向量库存储失败: {type(e).__name__} - {err_msg}")
 
     # 3. 向量存储成功后，存储分块到数据库
@@ -117,6 +133,7 @@ async def process_document(
     doc.chunk_count = len(chunks)
     await db.flush()
 
+    logger.info(f"文档 {document_id} 处理完成: {len(chunks)} 个 chunks")
     return True
 
 
@@ -186,7 +203,7 @@ async def delete_document(db: AsyncSession, document_id: int, tenant_id: int) ->
 
     # 删除向量库数据
     try:
-        delete_documents(tenant_id, document_id)
+        delete_documents(tenant_id, [str(document_id)])
     except Exception as e:
         logger.error(f"删除向量失败: {e}")
 
@@ -209,18 +226,20 @@ def extract_text_from_file(file_path: str, file_type: str) -> str:
 
     Args:
         file_path: 文件路径
-        file_type: 文件类型 (pdf/docx/txt)
+        file_type: 文件类型 (pdf/docx/txt/jpg/png)
 
     Returns:
         提取的文本内容
     """
     text = ""
+    logger.info(f"开始提取文本: file_path={file_path}, file_type={file_type}")
     try:
         if file_type == "pdf":
             from pypdf import PdfReader
             reader = PdfReader(file_path)
             for page in reader.pages:
                 text += page.extract_text() + "\n"
+            logger.info(f"PDF 提取完成: {len(reader.pages)} 页, {len(text)} 字符")
 
         elif file_type in ["docx", "doc"]:
             from docx import Document
@@ -232,8 +251,14 @@ def extract_text_from_file(file_path: str, file_type: str) -> str:
             with open(file_path, "r", encoding="utf-8") as f:
                 text = f.read()
 
+        elif file_type in ["jpg", "jpeg", "png", "bmp", "tiff"]:
+            from utils.ocr import OCRProcessor
+            ocr = OCRProcessor()
+            text = ocr.extract_text(file_path)
+
     except Exception as e:
         logger.error(f"文本提取失败: {e}")
         raise
 
+    logger.info(f"文本提取完成: {len(text)} 字符")
     return text

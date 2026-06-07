@@ -7,9 +7,9 @@ import asyncio
 import os
 import logging
 import time
-from typing import List, Dict, Any, Tuple, AsyncGenerator
+from typing import List, Dict, Any, Tuple, AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import joinedload
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -19,7 +19,8 @@ import jieba
 from models.db_models import DocumentChunk, Session as SessionModel, Message, Document
 from core.config import get_settings
 from core.logging_config import setup_logging
-from utils.query_rewrite import is_greeting_query, rewrite_query
+from utils.query_rewrite import is_greeting_query, rewrite_query, expand_query_variants
+from services import session_service
 
 logger = setup_logging("rag_service")
 from core.chroma_conn import similarity_search
@@ -28,6 +29,7 @@ from utils.rerank import rerank_documents
 # ==================== RAG 检索参数 ====================
 HYBRID_SEARCH_TOP_K = 10
 RERANK_TOP_K = 3
+NEIGHBOR_COUNT = 1
 
 # LLM 生成参数
 LLM_TEMPERATURE = 0.3
@@ -42,7 +44,7 @@ STREAM_BUFFER_INTERVAL_MS = 150
 MAX_SOURCES_COUNT = 3
 
 REWRITE_HISTORY_TURNS = 4   # 改写：只取用户历史问句（不含assistant，不含当前）
-LLM_HISTORY_TURNS = 4       # LLM生成：最近4轮历史（不含当前问题）
+MAX_HISTORY_TOKENS = 4000   # LLM生成：历史对话 token 预算（不含当前 query）
 
 settings = get_settings()
 
@@ -55,9 +57,57 @@ if settings.langchain_endpoint:
 
 
 
+_token_counter = None
+
+
+def count_tokens(text: str) -> int:
+    global _token_counter
+    if _token_counter is None:
+        import tiktoken
+        _token_counter = tiktoken.get_encoding("cl100k_base")
+    return len(_token_counter.encode(text))
+
+
+def build_token_window(
+    messages: List[Dict[str, str]], max_tokens: int
+) -> List[Dict[str, str]]:
+    """从后往前累加 token，超出预算截断"""
+    total = 0
+    window = []
+    for msg in reversed(messages):
+        t = count_tokens(msg["content"])
+        if total + t > max_tokens:
+            break
+        window.insert(0, msg)
+        total += t
+    return window
+
+
+async def summarize_history(cut_messages: List[Dict[str, str]]) -> str:
+    """将被裁掉的早期对话压缩为摘要"""
+    text = "\n".join(f"{m['role']}: {m['content']}" for m in cut_messages)
+    prompt = f"""以下是对话早期的部分内容，请用2-3句话概括核心话题和关键信息：
+
+{text}
+
+概括："""
+    try:
+        llm = ChatOpenAI(
+            model="deepseek-chat",
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url,
+            temperature=0.1,
+            max_tokens=256,
+        )
+        return (await llm.ainvoke(prompt)).content.strip()
+    except Exception as e:
+        logger.warning(f"历史摘要生成失败: {e}")
+        return ""
+
 
 async def vector_search(query: str, tenant_id: int, top_k: int = 10) -> List[Dict[str, Any]]:
     """向量检索 (Chroma)"""
+    logger.info(f"向量检索: tenant={tenant_id}, query='{query[:50]}...'")
     try:
         all_documents = []
         for tid in [tenant_id, 0]:
@@ -67,8 +117,8 @@ async def vector_search(query: str, tenant_id: int, top_k: int = 10) -> List[Dic
                     all_documents.append({
                         "document_id": int(r["metadata"].get("document_id", 0)),
                         "chunk_index": int(r["metadata"].get("chunk_index", 0)),
-                        "text": r["text"],
-                        "score": 1 - r["score"],
+                        "text": r.get("document", r.get("text", "")),
+                        "score": 1 - r["distance"],
                         "tenant_id": int(r["metadata"].get("tenant_id", tid))
                     })
             except Exception as e:
@@ -76,7 +126,9 @@ async def vector_search(query: str, tenant_id: int, top_k: int = 10) -> List[Dic
                 continue
 
         all_documents.sort(key=lambda x: x["score"], reverse=True)
-        return all_documents[:top_k]
+        result = all_documents[:top_k]
+        logger.info(f"向量检索完成: {len(result)} 条结果")
+        return result
 
     except Exception as e:
         logger.error(f"向量检索失败: {e}")
@@ -85,6 +137,7 @@ async def vector_search(query: str, tenant_id: int, top_k: int = 10) -> List[Dic
 
 async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int = 10) -> List[Dict[str, Any]]:
     """BM25 关键词检索"""
+    logger.info(f"BM25 检索: tenant={tenant_id}, query='{query[:50]}...'")
     try:
         docs_result = await db.execute(
             select(DocumentChunk.document_id)
@@ -122,7 +175,9 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
             })
 
         results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:top_k]
+        top_results = results[:top_k]
+        logger.info(f"BM25 检索完成: {len(top_results)} 条结果")
+        return top_results
 
     except Exception as e:
         logger.error(f"BM25 检索失败: {e}")
@@ -131,6 +186,7 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
 
 async def hybrid_search(query: str, tenant_id: int, db: AsyncSession, top_k: int = 10) -> List[Dict[str, Any]]:
     """混合检索：向量检索 + BM25 + RRF"""
+    logger.info(f"混合检索: tenant={tenant_id}")
     vector_results = await vector_search(query, tenant_id, top_k)
     bm25_results = await bm25_search(db, query, tenant_id, top_k)
 
@@ -150,7 +206,70 @@ async def hybrid_search(query: str, tenant_id: int, db: AsyncSession, top_k: int
             rrf_scores[key] = {**r, "source": "bm25", "rrf_score": 1 / (RRF_K + rank)}
 
     sorted_results = sorted(rrf_scores.values(), key=lambda x: x["rrf_score"], reverse=True)
-    return sorted_results[:top_k]
+    result = sorted_results[:top_k]
+    logger.info(f"RRF 融合完成: vector={len(vector_results)} + BM25={len(bm25_results)} → rrf={len(result)}")
+    return result
+
+
+async def _expand_neighbors(
+    chunks: List[Dict[str, Any]],
+    db: AsyncSession,
+    neighbor_count: int = NEIGHBOR_COUNT,
+) -> List[Dict[str, Any]]:
+    """邻居扩展：为每条结果补 ±N 个邻居，不合并，保持独立 chunk"""
+    if not chunks or neighbor_count < 1:
+        return chunks
+
+    seen = set()
+    conditions = []
+    for r in chunks:
+        key = (r["document_id"], r["chunk_index"])
+        if key in seen:
+            continue
+        seen.add(key)
+        for offset in range(-neighbor_count, neighbor_count + 1):
+            n_idx = r["chunk_index"] + offset
+            if n_idx >= 0:
+                conditions.append(
+                    and_(
+                        DocumentChunk.document_id == r["document_id"],
+                        DocumentChunk.chunk_index == n_idx,
+                    )
+                )
+
+    if not conditions:
+        return chunks
+
+    result = await db.execute(
+        select(DocumentChunk)
+        .where(or_(*conditions))
+        .options(joinedload(DocumentChunk.document))
+    )
+    rows = result.scalars().all()
+
+    seen_ids = set()
+    expanded = []
+
+    for r in chunks:
+        key = (r["document_id"], r["chunk_index"])
+        if key not in seen_ids:
+            seen_ids.add(key)
+            expanded.append(r)
+
+    for row in rows:
+        key = (row.document_id, row.chunk_index)
+        if key not in seen_ids:
+            seen_ids.add(key)
+            expanded.append({
+                "document_id": row.document_id,
+                "chunk_index": row.chunk_index,
+                "text": row.text,
+                "tenant_id": row.document.tenant_id if row.document else 0,
+                "score": 0,
+            })
+
+    logger.info(f"邻居扩展: {len(chunks)} 条 → {len(expanded)} 条")
+    return expanded
 
 
 async def rerank_results(query: str, documents: List[Dict[str, Any]], top_k: int = 5) -> List[Dict[str, Any]]:
@@ -168,7 +287,6 @@ async def rerank_results(query: str, documents: List[Dict[str, Any]], top_k: int
             doc["rerank_score"] = score
             result.append(doc)
 
-        logger.info(f"Rerank 完成，top_score={reranked[0][1]:.4f}" if reranked else "Rerank 完成，无结果")
         return result
 
     except Exception as e:
@@ -179,7 +297,8 @@ async def rerank_results(query: str, documents: List[Dict[str, Any]], top_k: int
 async def generate_answer(
     query: str,
     context_chunks: List[Dict[str, Any]],
-    conversation_history: List[Dict[str, str]] = None
+    conversation_history: List[Dict[str, str]] = None,
+    history_summary: str = "",
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     生成答案（流式）
@@ -208,17 +327,19 @@ async def generate_answer(
         for i, chunk in enumerate(context_chunks)
     ])
 
-    def format_history(history, max_turns=5):
+    def format_history(history):
         lines = []
-        for msg in history[-max_turns:]:
+        for msg in history:
             role = "用户" if msg["role"] == "user" else "助手"
             lines.append(f"{role}：{msg['content']}")
         return "\n".join(lines)
 
-    clean_history = format_history(conversation_history, LLM_HISTORY_TURNS)
+    clean_history = format_history(conversation_history)
+
+    summary_block = f"\n【历史摘要】\n{history_summary}\n" if history_summary else ""
 
     prompt = f"""{SYSTEM_PROMPT}
-
+{summary_block}
 【历史对话】
 {clean_history}
 
@@ -245,6 +366,7 @@ async def generate_answer(
             HumanMessage(content=prompt)
         ]
 
+        logger.info(f"LLM 调用: model=deepseek-chat, query_len={len(query)}, context_chunks={len(context_chunks)}, history_len={len(conversation_history)}")
         buffer = ""
         last_yield_time = time.time()
         async for chunk in llm.astream(messages):
@@ -277,7 +399,8 @@ async def chat_with_rag(
     query: str,
     session_id: int,
     tenant_id: int,
-    db: AsyncSession
+    db: AsyncSession,
+    cached_messages: Optional[List[Dict[str, str]]] = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     RAG 问答
@@ -302,43 +425,80 @@ async def chat_with_rag(
         yield {"type": "done", "sources": []}
         return
 
-    messages_result = await db.execute(
-        select(Message).where(Message.session_id == session_id).order_by(Message.created_at)
-    )
-    messages_list = list(messages_result.scalars().all())
+    # ===================== 加载消息（缓存优先） =====================
+    if cached_messages is not None:
+        raw_dicts = cached_messages + [{"role": "user", "content": query}]
+    else:
+        messages_result = await db.execute(
+            select(Message).where(Message.session_id == session_id).order_by(Message.created_at)
+        )
+        raw_orm = list(messages_result.scalars().all())
+        raw_dicts = [{"role": m.role, "content": m.content} for m in raw_orm]
 
     # ===================== 历史拆分 =====================
-    # 给【改写+检索】用：只取最近5条用户问句（剔除assistant）
+    # 给【改写+检索】用：只取最近4条用户问句
     history_for_rewrite = (
-        [
-            {"role": msg.role, "content": msg.content}
-            for msg in messages_list
-            if msg.role == "user"
-        ][-REWRITE_HISTORY_TURNS:]
-        if messages_list else []
+        [m for m in raw_dicts if m["role"] == "user"][-REWRITE_HISTORY_TURNS:]
+        if raw_dicts else []
     )
 
-    # 给【LLM生成】用：取最近4轮历史对话（排除当前消息）
-    # 当前消息已在 api/chat.py 中保存到DB，所以取 [-5:-1] 而不是 [-4:]
-    history_for_llm = [
-        {"role": msg.role, "content": msg.content}
-        for msg in messages_list[-(LLM_HISTORY_TURNS + 1):-1]
-    ] if len(messages_list) > LLM_HISTORY_TURNS + 1 else []
+    # 给【LLM生成】用：token 滑动窗口（排除当前消息）
+    recent = raw_dicts[:-1]
+    history_for_llm = build_token_window(recent, MAX_HISTORY_TOKENS)
+
+    # 长会话摘要：被窗口裁掉的部分（缓存优先）
+    history_summary = ""
+    if len(recent) > len(history_for_llm):
+        cut_count = len(recent) - len(history_for_llm)
+        if cut_count >= 4:
+            cached = await session_service.get_cached_summary_from_redis(
+                session_id, tenant_id, cut_count
+            )
+            if cached is not None:
+                history_summary = cached
+            else:
+                cut_messages = recent[:cut_count]
+                history_summary = await summarize_history(cut_messages)
+                await session_service.cache_summary_to_redis(
+                    session_id, tenant_id, cut_count, history_summary
+                )
 
     original_query = query
 
     # ===================== 执行改写（真正用history） =====================
-    rewritten_query = rewrite_query(original_query, history_for_rewrite)
+    rewritten_query = await rewrite_query(original_query, history_for_rewrite)
     if rewritten_query != original_query:
         logger.info(f"chat_with_rag: Query 改写 '{original_query}' -> '{rewritten_query}'")
-        search_query = rewritten_query
     else:
         logger.info(f"chat_with_rag: Query 无需改写")
-        search_query = original_query
 
-    logger.info(f"chat_with_rag: 开始检索 query={search_query}")
-    search_results = await hybrid_search(search_query, tenant_id, db, top_k=HYBRID_SEARCH_TOP_K)
-    logger.info(f"chat_with_rag: 检索完成, 找到 {len(search_results)} 条结果")
+    # ===================== 多语义变体扩展 & 多路检索 =====================
+    if settings.query_variant_enabled and settings.query_variant_count > 1:
+        variants = await expand_query_variants(rewritten_query, history_for_rewrite, settings.query_variant_count)
+        logger.info(f"chat_with_rag: 生成 {len(variants)} 个检索变体: {variants}")
+        per_variant_top_k = HYBRID_SEARCH_TOP_K // len(variants) + 2
+        tasks = [hybrid_search(v, tenant_id, db, top_k=per_variant_top_k) for v in variants]
+        all_results_lists = await asyncio.gather(*tasks)
+
+        seen = {}
+        for results in all_results_lists:
+            for r in results:
+                key = (r["tenant_id"], r["document_id"], r["chunk_index"])
+                if key not in seen or r["rrf_score"] > seen[key]["rrf_score"]:
+                    seen[key] = r
+        merged = sorted(seen.values(), key=lambda x: x["rrf_score"], reverse=True)
+        search_results = merged[:HYBRID_SEARCH_TOP_K * 2]
+        search_query = rewritten_query
+        logger.info(f"chat_with_rag: 多路检索完成, 合并后 {len(search_results)} 条结果")
+    else:
+        logger.info(f"chat_with_rag: 开始检索 query={rewritten_query}")
+        search_results = await hybrid_search(rewritten_query, tenant_id, db, top_k=HYBRID_SEARCH_TOP_K)
+        search_query = rewritten_query
+        logger.info(f"chat_with_rag: 检索完成, 找到 {len(search_results)} 条结果")
+
+    # ===================== 邻居扩展 =====================
+    search_results = await _expand_neighbors(search_results, db)
+    search_results = search_results[:15]
 
     if not search_results:
         logger.warning("chat_with_rag: 未找到相关文档")
@@ -349,24 +509,21 @@ async def chat_with_rag(
     logger.info(f"chat_with_rag: 开始重排 rerank_top_k={RERANK_TOP_K}")
     reranked = await rerank_results(search_query, search_results, RERANK_TOP_K)
 
-    threshold = settings.reranker_threshold
-    filtered = [r for r in reranked if r.get("rerank_score", 0) >= threshold]
+    relevant_results = [r for r in reranked[:RERANK_TOP_K] if r.get("rerank_score", 0) >= 0.1]
 
-    if not filtered:
-        logger.warning(f"chat_with_rag: 重排结果均低于阈值 {threshold}")
+    if not relevant_results:
+        logger.warning(f"重排结果均低于阈值 0.1, top_score={reranked[0].get('rerank_score', 0):.4f}" if reranked else "重排无结果")
         yield {"type": "error", "content": "当前文档未收录该问题"}
         yield {"type": "done", "sources": []}
         return
-
-    relevant_results = filtered
-    logger.info(f"chat_with_rag: 阈值过滤后保留 {len(relevant_results)} 条结果")
 
     logger.info("chat_with_rag: 开始调用 LLM")
 
     generator = generate_answer(
         query=original_query,
         context_chunks=relevant_results,
-        conversation_history=history_for_llm
+        conversation_history=history_for_llm,
+        history_summary=history_summary,
     )
     try:
         async for item in generator:

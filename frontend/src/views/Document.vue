@@ -17,7 +17,7 @@
           :on-success="handleUploadSuccess"
           :on-error="handleUploadError"
           :show-file-list="false"
-          accept=".pdf,.docx,.doc,.txt,.md"
+          accept=".pdf,.docx,.doc,.txt,.md,.jpg,.jpeg,.png,.bmp,.tiff"
         >
           <el-button type="primary">
             <el-icon><Upload /></el-icon>
@@ -198,7 +198,7 @@ const handleUploadError = (error) => {
 const processDocument = async (docId) => {
   processingId.value = docId
   try {
-    await api.post(`/api/documents/process/${docId}`)
+    await api.post(`/api/documents/process/${docId}`, null, { timeout: 120000 })
     ElMessage.success('处理成功')
     await fetchDocuments()
   } catch (error) {

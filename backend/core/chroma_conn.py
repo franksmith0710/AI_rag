@@ -1,16 +1,15 @@
 """
 Chroma 向量数据库连接模块
 负责文档向量的存储和检索
-使用本地 BGE-M3 模型进行 Embedding
-支持 GPU 加速
+使用 ONNX Runtime 加载本地 BGE-M3 模型
 """
 import os
 import logging
-import torch
+import onnxruntime
 from typing import Optional, List, Dict, Any
 import chromadb
 from chromadb.config import Settings
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer
 from .config import get_settings
 from .logging_config import setup_logging
 import hashlib
@@ -18,34 +17,25 @@ import hashlib
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
 _chroma_clients: Dict[int, chromadb.PersistentClient] = {}
 
 
 class LocalEmbedding:
-    """本地 Embedding 模型 (BGE-M3)"""
-    _model = None
+    """本地 Embedding 模型 (BGE-M3 ONNX) — CLS + L2 normalize 已在图内"""
+    _session = None
     _tokenizer = None
 
     def __init__(self):
         self._load_model()
 
     def _load_model(self):
-        model_path = os.environ.get("EMBEDDING_MODEL_PATH", "/models/BAAI/bge-m3")
-        logger.info(f"加载本地 Embedding 模型: {model_path}, 设备: {DEVICE}")
-
-        LocalEmbedding._tokenizer = AutoTokenizer.from_pretrained(model_path)
-        LocalEmbedding._model = AutoModel.from_pretrained(model_path).to(DEVICE)
-        LocalEmbedding._model.eval()
-
-        logger.info("Embedding 模型加载完成")
-
-    @staticmethod
-    def _mean_pooling(model_output, attention_mask):
-        token_embeddings = model_output[0]
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+        logger.info(f"加载 ONNX Embedding 模型: {settings.embedding_onnx_path}")
+        LocalEmbedding._tokenizer = AutoTokenizer.from_pretrained(settings.embedding_model_path)
+        LocalEmbedding._session = onnxruntime.InferenceSession(
+            settings.embedding_onnx_path,
+            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+        )
+        logger.info(f"Embedding ONNX 模型加载完成, providers={LocalEmbedding._session.get_providers()}")
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         logger.info(f"embed_documents: 接收 {len(texts)} 个文本")
@@ -55,17 +45,16 @@ class LocalEmbedding:
         try:
             inputs = LocalEmbedding._tokenizer(
                 texts,
-                return_tensors='pt',
+                return_tensors='np',
                 max_length=512,
                 truncation=True,
                 padding=True
             )
-            inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-
-            with torch.no_grad():
-                outputs = LocalEmbedding._model(**inputs)
-                embeddings = self._mean_pooling(outputs, inputs['attention_mask'])
-                results = embeddings.float().cpu().tolist()
+            outputs = LocalEmbedding._session.run(None, {
+                'input_ids': inputs['input_ids'].astype('int64'),
+                'attention_mask': inputs['attention_mask'].astype('int64'),
+            })[0]
+            results = outputs.tolist()
 
             if len(results) == 1:
                 results = [results[0]]
@@ -78,12 +67,12 @@ class LocalEmbedding:
     def embed_query(self, text: str) -> List[float]:
         logger.info(f"embed_query: 文本长度={len(text)}")
         try:
-            inputs = LocalEmbedding._tokenizer(text, return_tensors='pt', max_length=512, truncation=True, padding=True)
-            inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-            with torch.no_grad():
-                outputs = LocalEmbedding._model(**inputs)
-                embedding = self._mean_pooling(outputs, inputs['attention_mask'])
-                result = embedding.squeeze().float().cpu().tolist()
+            inputs = LocalEmbedding._tokenizer(text, return_tensors='np', max_length=512, truncation=True, padding=True)
+            outputs = LocalEmbedding._session.run(None, {
+                'input_ids': inputs['input_ids'].astype('int64'),
+                'attention_mask': inputs['attention_mask'].astype('int64'),
+            })[0]
+            result = outputs.squeeze().tolist()
             logger.info(f"embed_query: 成功, 向量长度={len(result)}")
             return result
         except Exception as e:

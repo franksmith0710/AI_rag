@@ -3,6 +3,7 @@ Redis 连接模块
 负责 Redis 连接管理，支持生产环境使用 Redis
 开发环境自动降级为内存缓存
 """
+import random
 import redis.asyncio as redis
 from .config import get_settings
 from .logging_config import setup_logging
@@ -69,19 +70,20 @@ async def get_cached(key: str) -> Optional[str]:
     return None
 
 
-async def set_cached(key: str, value: str, expire: int = 3600):
+async def set_cached(key: str, value: str, expire: int = 86400):
     """
     设置缓存值 (统一接口)
 
     Args:
         key: 缓存键
         value: 缓存值
-        expire: 过期时间(秒)，默认 1 小时
+        expire: 过期时间(秒)，默认 24h，实际增加随机抖动防雪崩
     """
     r = await get_redis()
     if r:
-        # 使用 Redis
-        await r.setex(key, expire, value)
+        # 增加 ±30% 随机抖动，防止大量 key 同时过期
+        actual_expire = expire + random.randint(0, expire // 3)
+        await r.setex(key, actual_expire, value)
     else:
         # 使用内存缓存兜底
         _memory_cache[key] = value

@@ -5,10 +5,13 @@
 """
 import os
 import uuid
+import logging
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
+from core.logging_config import setup_logging
 from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse
 from services import doc_service
 from api.auth import get_current_user
@@ -16,6 +19,7 @@ from models.schemas import UserResponse
 from utils.common import ApiResponse
 from core.config import get_settings
 
+logger = setup_logging("api.document")
 router = APIRouter(prefix="/documents", tags=["文档"])
 settings = get_settings()
 
@@ -30,7 +34,7 @@ async def upload_document(
     """
     上传文档接口
 
-    支持格式: .pdf, .docx, .doc, .txt
+    支持格式: .pdf, .docx, .doc, .txt, .md, .jpg, .jpeg, .png, .bmp, .tiff
     is_global=True 时上传到全局共享租户 (仅 admin 可用)
 
     Args:
@@ -47,7 +51,7 @@ async def upload_document(
     """
     # 检查文件类型
     file_ext = os.path.splitext(file.filename)[1].lower()
-    allowed_exts = [".pdf", ".docx", ".doc", ".txt", ".md"]
+    allowed_exts = [".pdf", ".docx", ".doc", ".txt", ".md", ".jpg", ".jpeg", ".png", ".bmp", ".tiff"]
 
     if file_ext not in allowed_exts:
         raise HTTPException(
@@ -127,6 +131,7 @@ async def process_document(
     if doc.status == "completed":
         return ApiResponse.success(message="文档已处理完成")
 
+    logger.info(f"开始处理文档 document_id={document_id}, file={doc.file_name}")
     try:
         # 提取文本
         text_content = doc_service.extract_text_from_file(doc.file_path, doc.file_type)
@@ -136,12 +141,21 @@ async def process_document(
         await db.commit()
 
         if success:
+            logger.info(f"文档 {document_id} 处理成功")
             return ApiResponse.success(message="文档处理成功")
         else:
-            return ApiResponse.error(message="文档处理失败", code=500)
+            logger.error(f"文档 {document_id} 处理失败（空文本）")
+            return JSONResponse(
+                status_code=500,
+                content=ApiResponse.error(message="文档处理失败（空文本）", code=500)
+            )
 
     except Exception as e:
-        return ApiResponse.error(message=f"处理出错: {str(e)}", code=500)
+        logger.error(f"文档 {document_id} 处理异常: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content=ApiResponse.error(message=f"处理出错: {str(e)}", code=500)
+        )
 
 
 @router.get("", response_model=DocumentListResponse)

@@ -47,7 +47,7 @@
         </span>
       </div>
 
-      <el-scrollbar class="chat-messages" ref="messagesScroll">
+      <el-scrollbar v-if="messages.length" class="chat-messages" ref="messagesScroll">
         <div class="messages-wrapper">
           <div
             v-for="msg in messages"
@@ -81,6 +81,14 @@
           </div>
         </div>
       </el-scrollbar>
+
+      <div v-else class="welcome">
+        <div class="welcome-title">企业知识库智能问答</div>
+        <div class="welcome-desc">
+          上传你的制度文档，AI 自动检索并回答你的问题。<br>
+          支持 PDF、Word、TXT、Markdown、图片格式。
+        </div>
+      </div>
 
       <div class="chat-input">
         <el-input
@@ -203,40 +211,95 @@ const sendMessage = async () => {
   inputMessage.value = ''
   loading.value = true
 
+  messages.value.push({ role: 'user', content: userMessage })
+  scrollToBottom()
+
+  let firstToken = true
+  let assistantMsg = null
+  let lineBuf = ''
+  let currentEvent = ''
+
   try {
-    messages.value.push({ role: 'user', content: userMessage })
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ session_id: currentSessionId.value, message: userMessage })
+    })
 
-    const assistantMsg = {
-      role: 'assistant',
-      content: '',
-      sources: []
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
     }
-    messages.value.push(assistantMsg)
-    scrollToBottom()
 
-    const response = await fetch(
-      '/api/chat',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          session_id: currentSessionId.value,
-          message: userMessage
-        })
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      lineBuf += decoder.decode(value, { stream: true })
+      const parts = lineBuf.split('\n')
+      lineBuf = parts.pop() || ''
+
+      for (const rawLine of parts) {
+        const line = rawLine.trim()
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim()
+        } else if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6).trim()
+          if (currentEvent && dataStr) {
+            try {
+              const data = JSON.parse(dataStr)
+              if (currentEvent === 'text') {
+                if (firstToken) {
+                  firstToken = false
+                  loading.value = false
+                  assistantMsg = { role: 'assistant', content: data.content, sources: [] }
+                  messages.value.push(assistantMsg)
+                } else {
+                  const idx = messages.value.length - 1
+                  if (idx >= 0) messages.value[idx].content += data.content
+                }
+                scrollToBottom()
+              } else if (currentEvent === 'done') {
+                const idx = messages.value.length - 1
+                if (idx >= 0) messages.value[idx].sources = data.sources || []
+              } else if (currentEvent === 'error') {
+                if (firstToken) {
+                  firstToken = false
+                  loading.value = false
+                  assistantMsg = { role: 'assistant', content: data.content || '', sources: [] }
+                  messages.value.push(assistantMsg)
+                } else {
+                  const idx = messages.value.length - 1
+                  if (idx >= 0) messages.value[idx].content += data.content || ''
+                }
+                scrollToBottom()
+              }
+            } catch (e) {
+              console.error('SSE 解析错误', e)
+            }
+          }
+        }
       }
-    )
-
-    const data = await response.json()
-    assistantMsg.content = data.content
-    assistantMsg.sources = data.sources || []
-    scrollToBottom()
-
-  } catch (error) {
-    ElMessage.error(error.response?.data?.message || '发送消息失败')
+    }
+    await fetchSessions()
+  } catch (e) {
+    loading.value = false
+    if (firstToken) {
+      firstToken = false
+      messages.value.push({ role: 'assistant', content: e.message === 'HTTP 500'
+        ? '服务暂时异常，请稍后再试。' : '连接失败，请稍后再试。', sources: [] })
+      scrollToBottom()
+    }
   } finally {
+    if (firstToken) {
+      messages.value.push({ role: 'assistant', content: '服务暂时异常，请稍后再试。', sources: [] })
+      scrollToBottom()
+    }
     loading.value = false
   }
 }
@@ -455,6 +518,30 @@ onMounted(async () => {
 .loading {
   color: #909399;
   font-style: italic;
+}
+
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  user-select: none;
+}
+
+.welcome-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: #303133;
+  margin-bottom: 16px;
+}
+
+.welcome-desc {
+  font-size: 15px;
+  color: #909399;
+  line-height: 1.8;
+  text-align: center;
 }
 
 .chat-input {

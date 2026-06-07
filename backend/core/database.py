@@ -71,5 +71,10 @@ async def init_db():
     在应用启动时调用，创建所有表结构
     """
     async with async_engine.begin() as conn:
-        # run_sync 用于在异步上下文中运行同步操作
         await conn.run_sync(Base.metadata.create_all)
+        from sqlalchemy import text
+        await conn.execute(
+            text("""INSERT INTO tenants (id, name, created_at, updated_at)
+                    VALUES (0, 'Global', NOW(), NOW())
+                    ON CONFLICT (id) DO NOTHING""")
+        )

@@ -1,18 +1,18 @@
 """
 重排序模块
-使用 transformers 直接加载本地 BAAI/bge-reranker-v2-m3 模型
-支持 GPU 加速
+使用 ONNX Runtime 加载本地 BAAI/bge-reranker-v2-m3 ONNX 模型
+支持 CUDA 加速
 """
 import logging
 from typing import List, Tuple
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import onnxruntime
+from transformers import AutoTokenizer
 from core.config import get_settings
+from core.logging_config import setup_logging
 
-logger = logging.getLogger("rerank")
+logger = setup_logging("rerank")
 settings = get_settings()
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 _reranker_model = None
 _reranker_tokenizer = None
 
@@ -21,15 +21,13 @@ def _get_reranker():
     """获取 reranker 模型单例，延迟加载"""
     global _reranker_model, _reranker_tokenizer
     if _reranker_model is None:
-        model_path = settings.reranker_model_path
-        logger.info(f"加载 reranker 模型: {model_path}, 设备: {DEVICE}")
-        _reranker_tokenizer = AutoTokenizer.from_pretrained(model_path)
-        _reranker_model = AutoModelForSequenceClassification.from_pretrained(model_path)
-        if DEVICE == "cuda":
-            _reranker_model = _reranker_model.half()
-        _reranker_model.to(DEVICE)
-        _reranker_model.eval()
-        logger.info("Reranker 模型加载完成")
+        logger.info(f"加载 ONNX Reranker 模型: {settings.reranker_onnx_path}")
+        _reranker_tokenizer = AutoTokenizer.from_pretrained(settings.reranker_model_path)
+        _reranker_model = onnxruntime.InferenceSession(
+            settings.reranker_onnx_path,
+            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+        )
+        logger.info(f"Reranker ONNX 模型加载完成, providers={_reranker_model.get_providers()}")
     return _reranker_model, _reranker_tokenizer
 
 
@@ -59,12 +57,13 @@ def rerank_documents(
     try:
         model, tokenizer = _get_reranker()
         pairs = [[query, doc] for doc in documents]
-        inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors="pt", max_length=512)
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+        inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors="np", max_length=512)
 
-        with torch.no_grad():
-            outputs = model(**inputs)
-            raw_scores = outputs.logits.squeeze(-1).float().cpu().tolist()
+        outputs = model.run(None, {
+            'input_ids': inputs['input_ids'].astype('int64'),
+            'attention_mask': inputs['attention_mask'].astype('int64'),
+        })[0]
+        raw_scores = outputs.squeeze(-1).tolist()
 
         scores = [_sigmoid(s) for s in raw_scores]
 

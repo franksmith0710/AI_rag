@@ -63,7 +63,7 @@ class Document(Base):
     file_name = Column(String(500))  # 原始文件名
     file_path = Column(String(1000))  # 文件存储路径
     file_size = Column(Integer)  # 文件大小(字节)
-    file_type = Column(String(50))  # 文件类型 (pdf, docx, txt)
+    file_type = Column(String(50))  # 文件类型 (pdf, docx, txt, jpg, png, ...)
     status = Column(String(20), default="pending")  # 处理状态: pending(待处理) / completed(已完成)
     chunk_count = Column(Integer, default=0)  # 分块数量
     created_by = Column(Integer, ForeignKey("users.id"))  # 上传用户
@@ -103,6 +103,7 @@ class Session(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)  # 所属租户
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # 所属用户
     title = Column(String(255))  # 会话标题
+    message_version = Column(Integer, default=0, nullable=False)  # 消息版本号，用于缓存一致性校验
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

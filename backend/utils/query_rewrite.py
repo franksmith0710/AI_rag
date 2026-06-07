@@ -37,7 +37,7 @@ def is_greeting_query(query: str) -> bool:
     return False
 
 
-def rewrite_query(query: str, conversation_history: List[Dict] = None) -> str:
+async def rewrite_query(query: str, conversation_history: List[Dict] = None) -> str:
     """
     轻量级 Query 改写（LLM驱动，真正使用上下文）
 
@@ -82,9 +82,80 @@ def rewrite_query(query: str, conversation_history: List[Dict] = None) -> str:
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
             temperature=0.1,
-            max_tokens=128
+            max_tokens=128,
+            timeout=15
         )
-        rewritten = llm.invoke(prompt).content.strip()
+        rewritten = (await llm.ainvoke(prompt)).content.strip()
         return rewritten if rewritten else query
     except Exception:
         return query
+
+
+async def expand_query_variants(
+    query: str,
+    conversation_history: List[Dict] = None,
+    num_variants: int = 3,
+) -> List[str]:
+    """
+    生成多个语义等价的检索变体，用于多路召回提升 recall。
+
+    输入：改写后的 query + 历史
+    输出：List[str]，第一个元素为原始 query，后续为 LLM 生成变体
+    失败降级：返回 [query]
+    """
+    if not query:
+        return [""]
+
+    query = query.strip()
+    if not query:
+        return [query]
+
+    history_str = ""
+    if conversation_history:
+        history_str = "\n".join([
+            f"user: {m['content']}"
+            for m in conversation_history[-5:]
+        ])
+
+    extra = num_variants - 1  # 需要额外生成几个变体
+    if extra < 1:
+        return [query]
+
+    prompt = f"""【历史用户问题】
+{history_str}
+
+【当前问题】
+{query}
+
+任务：
+1. 根据当前问题和历史对话，生成{extra}个语义等价但表达方式不同的检索问句。
+2. 每个变体应侧重不同关键词和表述角度，以提升检索覆盖率。
+3. 不要强行关联无关历史。
+4. 每行一个问句，不要编号，不要多余内容。"""
+
+    try:
+        from langchain_openai import ChatOpenAI
+        from core.config import get_settings
+        settings = get_settings()
+        llm = ChatOpenAI(
+            model=settings.llm_rewrite_model,
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url,
+            temperature=0.1,
+            max_tokens=256,
+            timeout=15
+        )
+        text = (await llm.ainvoke(prompt)).content.strip()
+        variants = [line.strip() for line in text.split("\n") if line.strip()]
+        # 去重、去空
+        seen = set()
+        deduped = []
+        for v in variants:
+            if v and v not in seen:
+                deduped.append(v)
+                seen.add(v)
+        # 用足 extra 个（不够就取全部），前面放原始 query
+        result = [query] + deduped[:extra]
+        return result
+    except Exception:
+        return [query]
