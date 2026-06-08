@@ -7,14 +7,15 @@ import os
 import uuid
 import logging
 import asyncio
-from typing import Optional
+import time
+from typing import Optional, List
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.database import get_db
+from core.database import get_db, async_session_maker
 from core.logging_config import setup_logging
-from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse
+from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse, BatchUploadResult, BatchProcessResult
 from services import doc_service
 from api.auth import get_current_user
 from models.schemas import UserResponse
@@ -100,6 +101,110 @@ async def upload_document(
     return DocumentResponse.model_validate(doc)
 
 
+# ==================== 批量上传 ====================
+
+MAX_SINGLE_FILE_SIZE = 100 * 1024 * 1024   # 100MB
+MAX_TOTAL_FILE_SIZE = 200 * 1024 * 1024     # 200MB
+
+ALLOWED_EXTS = [".pdf", ".docx", ".doc", ".txt", ".md", ".jpg", ".jpeg", ".png", ".bmp", ".tiff"]
+
+
+@router.post("/upload-batch")
+async def upload_batch(
+    files: List[UploadFile] = File(...),
+    is_global: bool = Form(False),
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    批量上传文档接口
+
+    支持同时上传多个文件，返回每个文件的上传结果。
+    上传后文档状态为 pending，需手动点击"处理"进行向量化。
+
+    限制: 单文件 100MB，总量 200MB
+    """
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="未选择任何文件"
+        )
+
+    # 全局共享校验
+    if is_global and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有管理员可以上传到全局共享"
+        )
+
+    tenant_id = 0 if is_global else current_user.tenant_id
+    os.makedirs(settings.upload_dir, exist_ok=True)
+
+    # 先读取所有文件内容，校验大小
+    file_contents: List[tuple] = []  # [(file, content, ext)]
+    total_size = 0
+    results: List[BatchUploadResult] = []
+
+    for f in files:
+        ext = os.path.splitext(f.filename)[1].lower()
+
+        if ext not in ALLOWED_EXTS:
+            results.append(BatchUploadResult(file_name=f.filename, success=False, error=f"不支持的文件类型: {ext}"))
+            continue
+
+        content = await f.read()
+
+        if len(content) > MAX_SINGLE_FILE_SIZE:
+            results.append(BatchUploadResult(file_name=f.filename, success=False, error=f"文件超过100MB限制"))
+            continue
+
+        total_size += len(content)
+        if total_size > MAX_TOTAL_FILE_SIZE:
+            results.append(BatchUploadResult(file_name=f.filename, success=False, error="总量超过200MB限制"))
+            continue
+
+        file_contents.append((f, content, ext))
+
+    # 逐个保存文件并创建 DB 记录
+    for f, content, ext in file_contents:
+        try:
+            file_id = str(uuid.uuid4())
+            file_name = f"{file_id}{ext}"
+            file_path = os.path.join(settings.upload_dir, file_name)
+
+            async with aiofiles.open(file_path, "wb") as out:
+                await out.write(content)
+
+            doc = await doc_service.create_document(
+                db=db,
+                tenant_id=tenant_id,
+                title=f.filename.replace(ext, ""),
+                file_name=f.filename,
+                file_path=file_path,
+                file_size=len(content),
+                file_type=ext[1:],
+                user_id=current_user.id
+            )
+            await db.flush()
+
+            results.append(BatchUploadResult(file_name=f.filename, success=True, document_id=doc.id))
+        except Exception as e:
+            logger.error(f"保存文件失败: {f.filename}, error={e}")
+            results.append(BatchUploadResult(file_name=f.filename, success=False, error=str(e)))
+
+    await db.commit()
+
+    success_count = sum(1 for r in results if r.success)
+    failed_count = sum(1 for r in results if not r.success)
+
+    return ApiResponse.success(data={
+        "total": len(results),
+        "success": success_count,
+        "failed": failed_count,
+        "results": [r.model_dump() for r in results]
+    })
+
+
 @router.post("/process/{document_id}")
 async def process_document(
     document_id: int,
@@ -158,6 +263,56 @@ async def process_document(
             status_code=500,
             content=ApiResponse.error(message=f"处理出错: {str(e)}", code=500)
         )
+
+
+# ==================== 批量处理 ====================
+
+async def _process_one(document_id: int, tenant_id: int) -> dict:
+    """处理单个文档（独立 DB session，用于并行调用）"""
+    async with async_session_maker() as session:
+        doc = await doc_service.get_document_by_id(session, document_id, tenant_id)
+        if not doc:
+            return {"document_id": document_id, "success": False, "error": "文档不存在"}
+        if doc.status == "completed":
+            return {"document_id": document_id, "success": True}
+        try:
+            t0 = time.time()
+            text = await asyncio.to_thread(doc_service.extract_text_from_file, doc.file_path, doc.file_type)
+            t1 = time.time()
+            await doc_service.process_document(session, document_id, text, tenant_id)
+            await session.commit()
+            t2 = time.time()
+            logger.info(f"文档 {document_id}: 提取={t1-t0:.1f}s, 向量化={t2-t1:.1f}s, 总计={t2-t0:.1f}s")
+            return {"document_id": document_id, "success": True}
+        except Exception as e:
+            await session.rollback()
+            return {"document_id": document_id, "success": False, "error": str(e)}
+
+
+@router.post("/process-batch")
+async def process_batch(
+    document_ids: List[int],
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    批量处理文档接口
+    并行处理多个文档，不阻塞。每个文档独立 DB session。
+    """
+    if not document_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未选择任何文档")
+
+    tasks = [_process_one(doc_id, current_user.tenant_id) for doc_id in document_ids]
+    results = await asyncio.gather(*tasks)
+
+    success_count = sum(1 for r in results if r["success"])
+    failed_count = sum(1 for r in results if not r["success"])
+
+    return ApiResponse.success(data={
+        "total": len(results),
+        "success": success_count,
+        "failed": failed_count,
+        "results": results
+    })
 
 
 @router.get("", response_model=DocumentListResponse)

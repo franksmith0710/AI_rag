@@ -5,6 +5,8 @@ FastAPI 应用入口
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import uvicorn
 
 from core.config import get_settings
@@ -31,6 +33,11 @@ async def lifespan(app: FastAPI):
     """
     await init_db()
     logger.info("Database initialized")
+
+    # 增大线程池，提升并行处理能力
+    loop = asyncio.get_event_loop()
+    loop.set_default_executor(ThreadPoolExecutor(max_workers=16))
+    logger.info("线程池已扩大到 16 workers")
 
     from utils.rerank import _get_reranker
     from core.chroma_conn import get_embedding_model

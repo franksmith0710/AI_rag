@@ -11,19 +11,24 @@
           返回对话
         </el-button>
         <el-upload
-          :action="uploadUrl"
-          :headers="uploadHeaders"
-          :data="uploadData"
-          :on-success="handleUploadSuccess"
-          :on-error="handleUploadError"
           :show-file-list="false"
+          :http-request="handleUpload"
+          multiple
           accept=".pdf,.docx,.doc,.txt,.md,.jpg,.jpeg,.png,.bmp,.tiff"
         >
-          <el-button type="primary">
+          <el-button type="primary" :loading="uploading">
             <el-icon><Upload /></el-icon>
             上传文档
           </el-button>
         </el-upload>
+        <el-button
+          type="success"
+          :disabled="selectedIds.length === 0"
+          :loading="batchProcessing"
+          @click="batchProcess"
+        >
+          批量处理 ({{ selectedIds.length }})
+        </el-button>
       </div>
     </div>
 
@@ -32,7 +37,8 @@
       <el-tab-pane label="全局共享" name="global" />
     </el-tabs>
 
-    <el-table :data="documents" style="width: 100%" v-loading="loading">
+    <el-table :data="documents" style="width: 100%" v-loading="loading" @selection-change="handleSelectionChange">
+      <el-table-column type="selection" width="50" :selectable="(row) => row.status !== 'completed'" />
       <el-table-column prop="title" label="文档标题" min-width="200" />
       <el-table-column prop="file_name" label="文件名" min-width="150" />
       <el-table-column prop="file_type" label="类型" width="80" />
@@ -141,15 +147,15 @@ const currentDocTitle = ref('')
 const chunks = ref([])
 const selectedChunkIndex = ref(0)
 
+const uploading = ref(false)
+const selectedIds = ref([])
+const batchProcessing = ref(false)
+
 const isAdmin = computed(() => userStore.user?.role === 'admin')
 
-const uploadUrl = computed(() => '/api/documents/upload')
-const uploadHeaders = computed(() => ({
-  Authorization: `Bearer ${localStorage.getItem('token')}`
-}))
-const uploadData = computed(() => ({
-  is_global: activeTab.value === 'global' ? 'true' : 'false'
-}))
+const handleSelectionChange = (rows) => {
+  selectedIds.value = rows.map(r => r.id)
+}
 
 const fetchDocuments = async () => {
   loading.value = true
@@ -179,19 +185,64 @@ const handleTabChange = () => {
   fetchDocuments()
 }
 
-const handleUploadSuccess = async (response) => {
-  ElMessage.success('上传成功')
-  await fetchDocuments()
+const handleUpload = async ({ file, onSuccess, onError }) => {
+  uploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('files', file)
+    formData.append('is_global', activeTab.value === 'global' ? 'true' : 'false')
 
-  if (response.status === 'completed') {
-    ElMessage.success('文档已自动处理完成')
-  } else {
-    ElMessage.info('文档已上传，请点击"处理"按钮进行向量化')
+    const response = await api.post('/api/documents/upload-batch', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000
+    })
+
+    if (response.data.code === 200) {
+      const data = response.data.data
+      if (data.success > 0) {
+        ElMessage.success(`上传成功: ${data.success} 个文件`)
+      } else {
+        for (const r of data.results) {
+          if (!r.success) ElMessage.error(`${r.file_name}: ${r.error}`)
+        }
+      }
+    } else {
+      ElMessage.error(response.data.message || '上传失败')
+    }
+
+    onSuccess()
+    await fetchDocuments()
+  } catch (error) {
+    onError(error)
+    ElMessage.error(error.response?.data?.message || '上传失败')
+  } finally {
+    uploading.value = false
   }
 }
 
-const handleUploadError = (error) => {
-  ElMessage.error(error.response?.data?.message || '上传失败')
+const batchProcess = async () => {
+  if (selectedIds.value.length === 0) return
+  batchProcessing.value = true
+  try {
+    const response = await api.post('/api/documents/process-batch', {
+      document_ids: selectedIds.value
+    }, { timeout: 300000 })
+    if (response.data.code === 200) {
+      const data = response.data.data
+      if (data.failed > 0) {
+        ElMessage.warning(`批量处理完成: ${data.success} 成功, ${data.failed} 失败`)
+      } else {
+        ElMessage.success(`批量处理完成: ${data.success} 个文档`)
+      }
+    } else {
+      ElMessage.error(response.data.message || '批量处理失败')
+    }
+    await fetchDocuments()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '批量处理失败')
+  } finally {
+    batchProcessing.value = false
+  }
 }
 
 const processDocument = async (docId) => {

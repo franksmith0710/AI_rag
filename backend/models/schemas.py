@@ -175,3 +175,38 @@ class StreamChatRequest(BaseModel):
     """流式聊天请求 (预留)"""
     session_id: int
     message: str
+
+
+# ==================== 批量上传相关 ====================
+
+class BatchUploadResult(BaseModel):
+    """单个文件上传结果"""
+    file_name: str
+    success: bool
+    document_id: Optional[int] = None
+    error: Optional[str] = None
+
+
+class BatchUploadResponse(BaseModel):
+    """批量上传响应"""
+    total: int
+    success: int
+    failed: int
+    results: List[BatchUploadResult]
+
+
+# ==================== 批量处理相关 ====================
+
+class BatchProcessResult(BaseModel):
+    """单个文档处理结果"""
+    document_id: int
+    success: bool
+    error: Optional[str] = None
+
+
+class BatchProcessResponse(BaseModel):
+    """批量处理响应"""
+    total: int
+    success: int
+    failed: int
+    results: List[BatchProcessResult]
