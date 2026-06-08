@@ -33,7 +33,9 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ai_rag-backend:latest
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: rag-backend
     ports:
       - "8000:8000"

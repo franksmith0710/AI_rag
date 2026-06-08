@@ -93,10 +93,24 @@ def get_embedding_model() -> LocalEmbedding:
 
 
 def _get_client(tenant_id: int) -> chromadb.PersistentClient:
-    """获取租户的 Chroma 客户端"""
+    """获取租户的 Chroma 客户端（ChromaDB 1.x 兼容）"""
     if tenant_id not in _chroma_clients:
         persist_dir = os.path.join(settings.chroma_persist_dir, f"tenant_{tenant_id}_documents")
         os.makedirs(persist_dir, exist_ok=True)
+
+        # ChromaDB 1.x 要求 default_tenant 和 default_database 必须存在
+        admin = chromadb.AdminClient(
+            Settings(is_persistent=True, persist_directory=persist_dir, anonymized_telemetry=False)
+        )
+        try:
+            admin.create_tenant(name="default_tenant")
+        except Exception:
+            pass
+        try:
+            admin.create_database(name="default_database", tenant="default_tenant")
+        except Exception:
+            pass
+
         _chroma_clients[tenant_id] = chromadb.PersistentClient(
             path=persist_dir,
             settings=Settings(anonymized_telemetry=False)
