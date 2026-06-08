@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db, async_session_maker
 from core.logging_config import setup_logging
-from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse, BatchUploadResult, BatchProcessResult
+from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse, BatchUploadResult, BatchProcessResult, BatchProcessRequest
 from services import doc_service
 from api.auth import get_current_user
 from models.schemas import UserResponse
@@ -291,17 +291,17 @@ async def _process_one(document_id: int, tenant_id: int) -> dict:
 
 @router.post("/process-batch")
 async def process_batch(
-    document_ids: List[int],
+    req: BatchProcessRequest,
     current_user: UserResponse = Depends(get_current_user),
 ):
     """
     批量处理文档接口
     并行处理多个文档，不阻塞。每个文档独立 DB session。
     """
-    if not document_ids:
+    if not req.document_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未选择任何文档")
 
-    tasks = [_process_one(doc_id, current_user.tenant_id) for doc_id in document_ids]
+    tasks = [_process_one(doc_id, current_user.tenant_id) for doc_id in req.document_ids]
     results = await asyncio.gather(*tasks)
 
     success_count = sum(1 for r in results if r["success"])
@@ -337,7 +337,8 @@ async def list_documents(
         文档列表和总数
     """
     only_global = is_global is True
-    return await doc_service.get_documents(db, current_user.tenant_id, skip, limit, include_global=True, only_global=only_global)
+    include_global = is_global is not False
+    return await doc_service.get_documents(db, current_user.tenant_id, skip, limit, include_global=include_global, only_global=only_global)
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)

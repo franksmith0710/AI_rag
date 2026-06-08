@@ -197,6 +197,11 @@ class BatchUploadResponse(BaseModel):
 
 # ==================== 批量处理相关 ====================
 
+class BatchProcessRequest(BaseModel):
+    """批量处理请求"""
+    document_ids: List[int]
+
+
 class BatchProcessResult(BaseModel):
     """单个文档处理结果"""
     document_id: int

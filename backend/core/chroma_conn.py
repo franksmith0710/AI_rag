@@ -263,6 +263,11 @@ def delete_documents(tenant_id: int, document_ids: List[str] = None, where: Dict
 
     try:
         collection = client.get_collection(name=collection_name)
+    except Exception:
+        logger.warning(f"向量集合 {collection_name} 不存在，跳过删除")
+        return
+
+    try:
         if document_ids:
             collection.delete(ids=document_ids)
         elif where:
