@@ -159,6 +159,8 @@ async def delete_session(
     from core.redis_conn import delete_cached
     cache_key = f"session:{tenant_id}:{session_id}"
     await delete_cached(cache_key)
+    summary_cache_key = f"session_summary:{tenant_id}:{session_id}"
+    await delete_cached(summary_cache_key)
 
     return True
 

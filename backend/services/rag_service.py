@@ -48,6 +48,36 @@ MAX_HISTORY_TOKENS = 4000   # LLM生成：历史对话 token 预算（不含当�
 
 settings = get_settings()
 
+# ── BM25 索引缓存 ──
+_bm25_cache: Dict[int, dict] = {}  # tenant_id → {chunks, bm25}
+BM25_CACHE_MAX = 5
+
+
+def invalidate_bm25_cache(tenant_id: int = None):
+    """清除 BM25 缓存"""
+    global _bm25_cache
+    if tenant_id is not None:
+        _bm25_cache.pop(tenant_id, None)
+    else:
+        _bm25_cache.clear()
+
+
+def _get_or_build_bm25(tenant_id: int, chunks: list):
+    """获取或构建 BM25 索引（带缓存）"""
+    if tenant_id in _bm25_cache:
+        return _bm25_cache[tenant_id]
+    # LRU 淘汰
+    if len(_bm25_cache) >= BM25_CACHE_MAX:
+        oldest_key = next(iter(_bm25_cache))
+        del _bm25_cache[oldest_key]
+    # jieba 分词
+    from utils.splitter import _jieba_cut_for_bm25
+    tokenized = [_jieba_cut_for_bm25(c["text"]) for c in chunks]
+    bm25 = BM25Okapi(tokenized)
+    _bm25_cache[tenant_id] = {"chunks": chunks, "bm25": bm25, "tokenized": tokenized}
+    return _bm25_cache[tenant_id]
+
+
 if settings.langchain_api_key:
     os.environ["LANGCHAIN_API_KEY"] = settings.langchain_api_key
 if settings.langchain_project:
@@ -112,7 +142,9 @@ async def vector_search(query: str, tenant_id: int, top_k: int = 10) -> List[Dic
         all_documents = []
         for tid in [tenant_id, 0]:
             try:
-                results = similarity_search(tenant_id=tid, query=query, k=top_k)
+                def _vector_search_sync(tid=tid):
+                    return similarity_search(tenant_id=tid, query=query, k=top_k)
+                results = await asyncio.to_thread(_vector_search_sync)
                 for r in results:
                     all_documents.append({
                         "document_id": int(r["metadata"].get("document_id", 0)),
@@ -136,51 +168,70 @@ async def vector_search(query: str, tenant_id: int, top_k: int = 10) -> List[Dic
 
 
 async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int = 10) -> List[Dict[str, Any]]:
-    """BM25 关键词检索"""
+    """BM25 关键词检索（带缓存）"""
     logger.info(f"BM25 检索: tenant={tenant_id}, query='{query[:50]}...'")
     try:
-        docs_result = await db.execute(
-            select(DocumentChunk.document_id)
-            .join(DocumentChunk.document)
-            .where(DocumentChunk.document.has(Document.tenant_id.in_([tenant_id, 0])))
-            .distinct()
-        )
-        document_ids = [row[0] for row in docs_result.all()]
-        if not document_ids:
-            return []
+        # 检查缓存
+        cache_entry = _bm25_cache.get(tenant_id)
+        if cache_entry is None:
+            # 缓存未命中，查询数据库构建索引
+            docs_result = await db.execute(
+                select(DocumentChunk.document_id)
+                .join(DocumentChunk.document)
+                .where(DocumentChunk.document.has(Document.tenant_id.in_([tenant_id, 0])))
+                .distinct()
+            )
+            document_ids = [row[0] for row in docs_result.all()]
+            if not document_ids:
+                return []
 
-        chunks_result = await db.execute(
-            select(DocumentChunk)
-            .where(DocumentChunk.document_id.in_(document_ids))
-            .options(joinedload(DocumentChunk.document))
-        )
-        all_chunks = chunks_result.scalars().all()
-        if not all_chunks:
-            return []
+            chunks_result = await db.execute(
+                select(DocumentChunk, DocumentChunk.document_id)
+                .join(DocumentChunk.document)
+                .where(DocumentChunk.document_id.in_(document_ids))
+                .order_by(DocumentChunk.document_id, DocumentChunk.chunk_index)
+            )
+            chunks = []
+            for row in chunks_result.all():
+                chunk = row[0]
+                chunks.append({
+                    "id": chunk.id,
+                    "document_id": chunk.document_id,
+                    "chunk_index": chunk.chunk_index,
+                    "text": chunk.text,
+                    "source": f"document_{chunk.document_id}",
+                    "score": 0
+                })
 
-        chunk_list = list(all_chunks)
-        tokenized_corpus = [list(jieba.cut(chunk.text)) for chunk in chunk_list]
-        bm25 = BM25Okapi(tokenized_corpus)
-        tokenized_query = list(jieba.cut(query))
-        bm25_scores = bm25.get_scores(tokenized_query)
+            if not chunks:
+                return []
+
+            cache_entry = await asyncio.to_thread(_get_or_build_bm25, tenant_id, chunks)
+
+        # 使用缓存的 BM25 索引评分
+        bm25 = cache_entry["bm25"]
+        chunks = cache_entry["chunks"]
+
+        def _score_sync():
+            from utils.splitter import _jieba_cut_for_bm25
+            import numpy as np
+            query_tokens = _jieba_cut_for_bm25(query)
+            return bm25.get_scores(query_tokens)
+
+        scores = await asyncio.to_thread(_score_sync)
+        import numpy as np
 
         results = []
-        for idx, score in enumerate(bm25_scores):
-            results.append({
-                "document_id": chunk_list[idx].document_id,
-                "chunk_index": chunk_list[idx].chunk_index,
-                "text": chunk_list[idx].text,
-                "score": score,
-                "tenant_id": chunk_list[idx].document.tenant_id if chunk_list[idx].document else tenant_id
-            })
+        for idx in np.argsort(scores)[::-1][:top_k]:
+            if scores[idx] > 0:
+                chunk = chunks[idx].copy()
+                chunk["score"] = float(scores[idx])
+                results.append(chunk)
 
-        results.sort(key=lambda x: x["score"], reverse=True)
-        top_results = results[:top_k]
-        logger.info(f"BM25 检索完成: {len(top_results)} 条结果")
-        return top_results
+        return results
 
     except Exception as e:
-        logger.error(f"BM25 检索失败: {e}")
+        logger.error(f"BM25 检索失败: {str(e)}")
         return []
 
 
@@ -279,7 +330,7 @@ async def rerank_results(query: str, documents: List[Dict[str, Any]], top_k: int
 
     try:
         doc_texts = [d["text"] for d in documents]
-        reranked = rerank_documents(query, doc_texts, top_k)
+        reranked = await asyncio.to_thread(rerank_documents, query, doc_texts, top_k)
 
         result = []
         for idx, score in reranked:

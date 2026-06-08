@@ -11,25 +11,25 @@ logger = setup_logging("ocr")
 
 
 class OCRProcessor:
-    """OCR 处理器（RapidOCR ONNX 轻量版）
+    """OCR 处理器（RapidOCR ONNX 轻量版，全局单例）
 
     用法:
         ocr = OCRProcessor()
         text = ocr.extract_text("path/to/image.jpg")
     """
 
-    def __init__(self):
-        self._engine = None
+    _engine = None  # 类级单例
 
-    def _lazy_init(self):
-        if self._engine is not None:
-            return
-        try:
-            from rapidocr_onnxruntime import RapidOCR
-            self._engine = RapidOCR()
-        except Exception as e:
-            logger.error(f"RapidOCR 初始化失败: {e}")
-            raise
+    @classmethod
+    def _get_engine(cls):
+        if cls._engine is None:
+            try:
+                from rapidocr_onnxruntime import RapidOCR
+                cls._engine = RapidOCR()
+            except Exception as e:
+                logger.error(f"RapidOCR 初始化失败: {e}")
+                raise
+        return cls._engine
 
     def extract_text(self, image_path: str) -> str:
         """从图片文件提取文字
@@ -40,9 +40,9 @@ class OCRProcessor:
         Returns:
             提取的文本内容，无文字时返回空字符串
         """
-        self._lazy_init()
+        engine = self._get_engine()
         try:
-            result, elapse = self._engine(image_path)
+            result, elapse = engine(image_path)
             if not result:
                 logger.info(f"OCR 未识别到文字: {image_path}")
                 return ""

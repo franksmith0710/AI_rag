@@ -6,8 +6,10 @@
 import os
 import uuid
 import logging
+import asyncio
+from typing import Optional
 import aiofiles
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
@@ -27,7 +29,7 @@ settings = get_settings()
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
     file: UploadFile = File(...),
-    is_global: bool = False,
+    is_global: bool = Form(False),
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -134,7 +136,7 @@ async def process_document(
     logger.info(f"开始处理文档 document_id={document_id}, file={doc.file_name}")
     try:
         # 提取文本
-        text_content = doc_service.extract_text_from_file(doc.file_path, doc.file_type)
+        text_content = await asyncio.to_thread(doc_service.extract_text_from_file, doc.file_path, doc.file_type)
 
         # 处理文档 (分块 + 向量化)
         success = await doc_service.process_document(db, document_id, text_content, current_user.tenant_id)
@@ -162,22 +164,25 @@ async def process_document(
 async def list_documents(
     skip: int = 0,
     limit: int = 20,
+    is_global: Optional[bool] = Query(None, description="True=仅全局, False=仅个人, None=全部"),
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取文档列表（包含全局共享文档）
+    获取文档列表（支持全局共享过滤）
 
     Args:
         skip: 跳过条数
         limit: 返回条数
+        is_global: True=仅全局共享, False=仅个人, None=全部
         current_user: 当前登录用户
         db: 数据库会话
 
     Returns:
         文档列表和总数
     """
-    return await doc_service.get_documents(db, current_user.tenant_id, skip, limit, include_global=True)
+    only_global = is_global is True
+    return await doc_service.get_documents(db, current_user.tenant_id, skip, limit, include_global=True, only_global=only_global)
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)

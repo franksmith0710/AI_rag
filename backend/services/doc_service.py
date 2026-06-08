@@ -4,10 +4,11 @@
 支持 PDF/Word/TXT 格式文档处理
 """
 import os
+import asyncio
 import logging
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from models.db_models import Document, DocumentChunk
 from models.schemas import DocumentResponse, DocumentListResponse
 from utils.splitter import split_text
@@ -103,7 +104,8 @@ async def process_document(
             for idx in range(len(chunks))
         ]
         logger.info(f"写入向量库: {len(chunks)} 条, tenant={tenant_id}")
-        add_documents(
+        await asyncio.to_thread(
+            add_documents,
             tenant_id=tenant_id,
             texts=chunks,
             metadatas=metadatas
@@ -138,11 +140,11 @@ async def process_document(
 
 
 async def get_document_by_id(db: AsyncSession, document_id: int, tenant_id: int) -> Optional[Document]:
-    """获取文档详情"""
+    """获取文档详情（含全局共享文档）"""
     result = await db.execute(
         select(Document).where(
             Document.id == document_id,
-            Document.tenant_id == tenant_id
+            or_(Document.tenant_id == tenant_id, Document.tenant_id == 0)
         )
     )
     return result.scalar_one_or_none()
@@ -153,12 +155,14 @@ async def get_documents(
     tenant_id: int,
     skip: int = 0,
     limit: int = 20,
-    include_global: bool = True
+    include_global: bool = True,
+    only_global: bool = False
 ) -> DocumentListResponse:
-    """获取文档列表（包含全局共享文档）"""
-    from sqlalchemy import or_
-    # 查询当前租户 OR 全局租户(tenant_id=0)
-    if include_global:
+    """获取文档列表（支持全局共享过滤）"""
+    # 查询过滤
+    if only_global:
+        query_filter = Document.tenant_id == 0
+    elif include_global:
         query_filter = or_(Document.tenant_id == tenant_id, Document.tenant_id == 0)
     else:
         query_filter = Document.tenant_id == tenant_id
@@ -236,10 +240,33 @@ def extract_text_from_file(file_path: str, file_type: str) -> str:
     try:
         if file_type == "pdf":
             from pypdf import PdfReader
+            import pymupdf
+            import tempfile
+            from utils.ocr import OCRProcessor
+
             reader = PdfReader(file_path)
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-            logger.info(f"PDF 提取完成: {len(reader.pages)} 页, {len(text)} 字符")
+            pdf_doc = pymupdf.open(file_path)
+            ocr = OCRProcessor()
+            OCR_THRESHOLD = 50
+            ocr_pages = 0
+
+            for i, page in enumerate(reader.pages):
+                page_text = page.extract_text() or ""
+                if len(page_text.strip()) < OCR_THRESHOLD:
+                    pix = pdf_doc[i].get_pixmap(dpi=200)
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                        pix.save(tmp.name)
+                        ocr_text = ocr.extract_text(tmp.name)
+                        os.unlink(tmp.name)
+                    if ocr_text.strip():
+                        text += ocr_text + "\n"
+                        ocr_pages += 1
+                else:
+                    text += page_text + "\n"
+
+            pdf_doc.close()
+            logger.info(f"PDF 提取完成: 总页数={len(reader.pages)}, OCR页数={ocr_pages}, 文本长度={len(text)}")
+            return text.strip()
 
         elif file_type in ["docx", "doc"]:
             from docx import Document

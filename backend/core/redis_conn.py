@@ -4,6 +4,7 @@ Redis 连接模块
 开发环境自动降级为内存缓存
 """
 import random
+import time
 import redis.asyncio as redis
 from .config import get_settings
 from .logging_config import setup_logging
@@ -64,10 +65,14 @@ async def get_cached(key: str) -> Optional[str]:
         # 使用 Redis
         return await r.get(key)
 
-    # 使用内存缓存兜底
-    if key in _memory_cache:
-        return _memory_cache[key]
-    return None
+    # 使用内存缓存兜底（带 TTL）
+    entry = _memory_cache.get(key)
+    if entry is None:
+        return None
+    if time.time() > entry["expire"]:
+        del _memory_cache[key]
+        return None
+    return entry["value"]
 
 
 async def set_cached(key: str, value: str, expire: int = 86400):
@@ -85,8 +90,8 @@ async def set_cached(key: str, value: str, expire: int = 86400):
         actual_expire = expire + random.randint(0, expire // 3)
         await r.setex(key, actual_expire, value)
     else:
-        # 使用内存缓存兜底
-        _memory_cache[key] = value
+        # 使用内存缓存兜底（带 TTL）
+        _memory_cache[key] = {"value": value, "expire": time.time() + expire}
 
 
 async def delete_cached(key: str):

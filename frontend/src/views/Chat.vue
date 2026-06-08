@@ -59,16 +59,16 @@
               <div v-if="msg.sources && msg.sources.length" class="message-sources">
                 <div class="sources-title">参考文档：</div>
                 <div v-for="(source, idx) in msg.sources" :key="idx" class="source-item">
-                  <span :class="{ 'text-expanded': expandedSources[idx] }">
-                    {{ expandedSources[idx] ? source.text : (source.text?.substring(0, 300) || '') }}
-                    <span v-if="!expandedSources[idx] && source.text?.length > 300">...</span>
+                  <span :class="{ 'text-expanded': expandedSources[`${msg.id}-${idx}`] }">
+                    {{ expandedSources[`${msg.id}-${idx}`] ? source.text : (source.text?.substring(0, 300) || '') }}
+                    <span v-if="!expandedSources[`${msg.id}-${idx}`] && source.text?.length > 300">...</span>
                   </span>
                   <span
                     v-if="source.text?.length > 100"
                     class="expand-btn"
-                    @click="toggleSourceExpand(idx)"
+                    @click="toggleSourceExpand(msg.id, idx)"
                   >
-                    {{ expandedSources[idx] ? '收起' : '展开' }}
+                    {{ expandedSources[`${msg.id}-${idx}`] ? '收起' : '展开' }}
                   </span>
                 </div>
               </div>
@@ -120,6 +120,7 @@ import api from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Folder, SwitchButton } from '@element-plus/icons-vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 
 const router = useRouter()
@@ -134,13 +135,14 @@ const loading = ref(false)
 const messagesScroll = ref(null)
 const expandedSources = ref({})
 
-const toggleSourceExpand = (idx) => {
-  expandedSources.value[idx] = !expandedSources.value[idx]
+const toggleSourceExpand = (msgId, idx) => {
+  const key = `${msgId}-${idx}`
+  expandedSources.value[key] = !expandedSources.value[key]
 }
 
 const renderMarkdown = (text) => {
   if (!text) return ''
-  return marked(text)
+  return DOMPurify.sanitize(marked(text))
 }
 
 const fetchSessions = async () => {

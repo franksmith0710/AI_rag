@@ -37,29 +37,30 @@ class LocalEmbedding:
         )
         logger.info(f"Embedding ONNX 模型加载完成, providers={LocalEmbedding._session.get_providers()}")
 
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
+        """嵌入文档（分批处理，节省显存）"""
         logger.info(f"embed_documents: 接收 {len(texts)} 个文本")
         if not texts:
             return []
 
+        all_embeddings = []
         try:
-            inputs = LocalEmbedding._tokenizer(
-                texts,
-                return_tensors='np',
-                max_length=512,
-                truncation=True,
-                padding=True
-            )
-            outputs = LocalEmbedding._session.run(None, {
-                'input_ids': inputs['input_ids'].astype('int64'),
-                'attention_mask': inputs['attention_mask'].astype('int64'),
-            })[0]
-            results = outputs.tolist()
-
-            if len(results) == 1:
-                results = [results[0]]
-            logger.info(f"embed_documents: 成功, 向量数量={len(results)}, 向量长度={len(results[0]) if results else 0}")
-            return results
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                inputs = LocalEmbedding._tokenizer(
+                    batch,
+                    return_tensors='np',
+                    max_length=512,
+                    truncation=True,
+                    padding=True
+                )
+                outputs = LocalEmbedding._session.run(None, {
+                    'input_ids': inputs['input_ids'].astype('int64'),
+                    'attention_mask': inputs['attention_mask'].astype('int64'),
+                })[0]
+                all_embeddings.extend(outputs.tolist())
+            logger.info(f"embed_documents: 成功, 向量数量={len(all_embeddings)}, 向量长度={len(all_embeddings[0]) if all_embeddings else 0}")
+            return all_embeddings
         except Exception as e:
             logger.error(f"embed_documents: 批量处理失败 - {e}", exc_info=True)
             return []
@@ -120,9 +121,9 @@ def add_documents(
             name=collection_name,
             metadata={
                 "hnsw:space": "cosine",
-                "hnsw:construction_ef": 200,
-                "hnsw:search_ef": 200,
-                "hnsw:M": 32
+                "hnsw:construction_ef": 100,
+                "hnsw:search_ef": 50,
+                "hnsw:M": 16
             }
         )
 
@@ -138,9 +139,9 @@ def add_documents(
             name=collection_name,
             metadata={
                 "hnsw:space": "cosine",
-                "hnsw:construction_ef": 200,
-                "hnsw:search_ef": 200,
-                "hnsw:M": 32
+                "hnsw:construction_ef": 100,
+                "hnsw:search_ef": 50,
+                "hnsw:M": 16
             }
         )
 
@@ -181,9 +182,9 @@ def add_documents(
             name=collection_name,
             metadata={
                 "hnsw:space": "cosine",
-                "hnsw:construction_ef": 200,
-                "hnsw:search_ef": 200,
-                "hnsw:M": 32
+                "hnsw:construction_ef": 100,
+                "hnsw:search_ef": 50,
+                "hnsw:M": 16
             }
         )
         try:

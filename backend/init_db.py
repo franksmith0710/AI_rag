@@ -35,7 +35,7 @@ async def init_default_data():
         )
         global_tenant = global_tenant_result.scalar_one_or_none()
         if not global_tenant:
-            global_tenant = Tenant(id=0, name="全局共享")
+            global_tenant = Tenant(id=0, name="Global")
             session.add(global_tenant)
             await session.flush()
             logger.info("Created global shared tenant (tenant_id=0)")

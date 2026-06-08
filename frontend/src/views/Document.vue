@@ -154,20 +154,19 @@ const uploadData = computed(() => ({
 const fetchDocuments = async () => {
   loading.value = true
   try {
-    const response = await api.get('/api/documents', {
-      params: {
-        skip: (currentPage.value - 1) * pageSize.value,
-        limit: pageSize.value
-      }
-    })
-
-    // 根据 TAB 过滤显示
-    if (activeTab.value === 'my') {
-      documents.value = response.data.items.filter(d => d.tenant_id !== 0)
-    } else {
-      documents.value = response.data.items.filter(d => d.tenant_id === 0)
+    const params = {
+      skip: (currentPage.value - 1) * pageSize.value,
+      limit: pageSize.value
     }
-    total.value = documents.value.length
+    // 服务端过滤：is_global=true 仅全局，is_global=false 仅个人，不传=全部
+    if (activeTab.value === 'global') {
+      params.is_global = 'true'
+    } else {
+      params.is_global = 'false'
+    }
+    const response = await api.get('/api/documents', { params })
+    documents.value = response.data.items
+    total.value = response.data.total
   } catch (error) {
     ElMessage.error('获取文档列表失败')
   } finally {

@@ -95,14 +95,12 @@ async def register(
         )
 
     # 根据角色设置租户
-    # admin 角色使用 tenant_id=0（全局共享租户）
-    # user 角色自动创建新租户
-    if user_data.role == "admin":
-        user_data.tenant_id = 0
-    else:
-        tenant = await auth_service.create_tenant(db, f"租户_{user_data.username}")
-        user_data.tenant_id = tenant.id
+    # 所有用户（包括 admin）都创建独立私有租户
+    # admin 通过 role 权限访问全局共享文档 (tenant_id=0)
+    if user_data.role != "admin":
         user_data.role = "user"
+    tenant = await auth_service.create_tenant(db, f"租户_{user_data.username}")
+    user_data.tenant_id = tenant.id
 
     # 创建用户
     user = await auth_service.create_user(db, user_data)

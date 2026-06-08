@@ -38,6 +38,7 @@ export const useUserStore = defineStore('user', () => {
     token.value = ''
     user.value = null
     localStorage.removeItem('token')
+    delete api.defaults.headers.common['Authorization']
   }
 
   const fetchCurrentUser = async () => {
@@ -47,8 +48,10 @@ export const useUserStore = defineStore('user', () => {
       const response = await api.get('/api/auth/me')
       setUser(response.data)
       return response.data
-    } catch {
-      logout()
+    } catch (error) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        logout()
+      }
       return null
     }
   }
