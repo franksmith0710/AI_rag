@@ -16,6 +16,7 @@ settings = get_settings()
 
 redis_client: Optional[redis.Redis] = None
 _memory_cache = {}
+_MEMORY_CACHE_MAX = 1000  # 内存缓存最大条目数
 
 
 async def get_redis() -> Optional[redis.Redis]:
@@ -90,7 +91,12 @@ async def set_cached(key: str, value: str, expire: int = 86400):
         actual_expire = expire + random.randint(0, expire // 3)
         await r.setex(key, actual_expire, value)
     else:
-        # 使用内存缓存兜底（带 TTL）
+        # 使用内存缓存兜底（带 TTL + 容量限制）
+        if len(_memory_cache) >= _MEMORY_CACHE_MAX:
+            now = time.time()
+            expired = [k for k, v in _memory_cache.items() if now > v["expire"]]
+            for k in expired:
+                del _memory_cache[k]
         _memory_cache[key] = {"value": value, "expire": time.time() + expire}
 
 

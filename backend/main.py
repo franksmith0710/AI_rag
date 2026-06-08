@@ -34,6 +34,10 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    # JWT 密钥安全检查
+    if settings.jwt_secret_key == "your-secret-key-change-in-production":
+        logger.warning("⚠️  JWT 密钥使用默认值，生产环境请在 .env 中设置 JWT_SECRET_KEY")
+
     # 增大线程池，提升并行处理能力
     loop = asyncio.get_event_loop()
     loop.set_default_executor(ThreadPoolExecutor(max_workers=16))
@@ -69,12 +73,13 @@ app = FastAPI(
 # ==================== 中间件 ====================
 
 # CORS 中间件：允许跨域访问
+cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源
-    allow_credentials=True,  # 允许携带凭证
-    allow_methods=["*"],  # 允许所有方法
-    allow_headers=["*"],  # 允许所有请求头
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ==================== 路由注册 ====================

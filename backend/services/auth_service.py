@@ -10,9 +10,8 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from models.db_models import User, Tenant
-from models.schemas import UserCreate, UserLogin, TokenResponse, UserResponse
+from models.schemas import UserCreate
 from core.config import get_settings
-from utils.common import ApiResponse
 
 settings = get_settings()
 

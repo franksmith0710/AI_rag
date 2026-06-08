@@ -200,6 +200,7 @@ class BatchUploadResponse(BaseModel):
 class BatchProcessRequest(BaseModel):
     """批量处理请求"""
     document_ids: List[int]
+    force: bool = False
 
 
 class BatchProcessResult(BaseModel):

@@ -2,14 +2,14 @@
 数据库模型定义
 使用 SQLAlchemy ORM 定义所有数据库表结构
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from core.database import Base
 
 
 def utc_now():
-    return datetime.now()
+    return datetime.now(timezone.utc)
 
 
 class Tenant(Base):

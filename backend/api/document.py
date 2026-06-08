@@ -17,6 +17,7 @@ from core.database import get_db, async_session_maker
 from core.logging_config import setup_logging
 from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse, BatchUploadResult, BatchProcessResult, BatchProcessRequest
 from services import doc_service
+from services.rag_service import invalidate_bm25_cache
 from api.auth import get_current_user
 from models.schemas import UserResponse
 from utils.common import ApiResponse
@@ -61,6 +62,18 @@ async def upload_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"不支持的文件类型: {file_ext}"
         )
+
+    # 文件大小限制 (100MB)
+    MAX_FILE_SIZE = 100 * 1024 * 1024
+    file_size = 0
+    content = await file.read()
+    file_size = len(content)
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"文件大小超过限制: {file_size / 1024 / 1024:.1f}MB > 100MB"
+        )
+    await file.seek(0)
 
     # 全局共享校验：只有 admin 可以上传到全局租户
     if is_global and current_user.role != "admin":
@@ -208,6 +221,7 @@ async def upload_batch(
 @router.post("/process/{document_id}")
 async def process_document(
     document_id: int,
+    force: bool = Query(False, description="强制重新处理已完成的文档"),
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -234,8 +248,8 @@ async def process_document(
             detail="文档不存在"
         )
 
-    # 已经处理过则跳过
-    if doc.status == "completed":
+    # 已经处理过则跳过（除非强制重处理）
+    if doc.status == "completed" and not force:
         return ApiResponse.success(message="文档已处理完成")
 
     logger.info(f"开始处理文档 document_id={document_id}, file={doc.file_name}")
@@ -243,9 +257,10 @@ async def process_document(
         # 提取文本
         text_content = await asyncio.to_thread(doc_service.extract_text_from_file, doc.file_path, doc.file_type)
 
-        # 处理文档 (分块 + 向量化)
-        success = await doc_service.process_document(db, document_id, text_content, current_user.tenant_id)
+        # 处理文档 (分块 + 向量化) — 使用文档实际归属的 tenant_id
+        success = await doc_service.process_document(db, document_id, text_content, doc.tenant_id)
         await db.commit()
+        invalidate_bm25_cache(doc.tenant_id)
 
         if success:
             logger.info(f"文档 {document_id} 处理成功")
@@ -267,20 +282,44 @@ async def process_document(
 
 # ==================== 批量处理 ====================
 
-async def _process_one(document_id: int, tenant_id: int) -> dict:
+async def _process_one(document_id: int, tenant_id: int, force: bool = False) -> dict:
     """处理单个文档（独立 DB session，用于并行调用）"""
     async with async_session_maker() as session:
         doc = await doc_service.get_document_by_id(session, document_id, tenant_id)
         if not doc:
             return {"document_id": document_id, "success": False, "error": "文档不存在"}
-        if doc.status == "completed":
+        if doc.status == "completed" and not force:
             return {"document_id": document_id, "success": True}
         try:
+            # 强制重处理：清除旧向量数据和 chunks
+            if force and doc.status == "completed":
+                from sqlalchemy import delete
+                from models.db_models import DocumentChunk
+                from core.chroma_conn import delete_documents
+                # 清理正确位置的向量
+                await asyncio.to_thread(
+                    delete_documents, tenant_id=doc.tenant_id,
+                    where={"document_id": str(document_id)}
+                )
+                # 如果之前被错误写入了当前用户租户的 collection，也清理
+                if tenant_id != doc.tenant_id:
+                    await asyncio.to_thread(
+                        delete_documents, tenant_id=tenant_id,
+                        where={"document_id": str(document_id)}
+                    )
+                await session.execute(
+                    delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
+                )
+                logger.info(f"文档 {document_id}: 已清除旧向量和 chunks，准备重新处理")
+
             t0 = time.time()
             text = await asyncio.to_thread(doc_service.extract_text_from_file, doc.file_path, doc.file_type)
             t1 = time.time()
-            await doc_service.process_document(session, document_id, text, tenant_id)
+            await doc_service.process_document(session, document_id, text, doc.tenant_id)
             await session.commit()
+            invalidate_bm25_cache(doc.tenant_id)
+            if tenant_id != doc.tenant_id:
+                invalidate_bm25_cache(tenant_id)
             t2 = time.time()
             logger.info(f"文档 {document_id}: 提取={t1-t0:.1f}s, 向量化={t2-t1:.1f}s, 总计={t2-t0:.1f}s")
             return {"document_id": document_id, "success": True}
@@ -301,7 +340,7 @@ async def process_batch(
     if not req.document_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未选择任何文档")
 
-    tasks = [_process_one(doc_id, current_user.tenant_id) for doc_id in req.document_ids]
+    tasks = [_process_one(doc_id, current_user.tenant_id, force=req.force) for doc_id in req.document_ids]
     results = await asyncio.gather(*tasks)
 
     success_count = sum(1 for r in results if r["success"])
@@ -317,8 +356,8 @@ async def process_batch(
 
 @router.get("", response_model=DocumentListResponse)
 async def list_documents(
-    skip: int = 0,
-    limit: int = 20,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     is_global: Optional[bool] = Query(None, description="True=仅全局, False=仅个人, None=全部"),
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -432,6 +471,7 @@ async def delete_document(
     # 执行删除
     success = await doc_service.delete_document(db, document_id, doc.tenant_id)
     await db.commit()
+    invalidate_bm25_cache(doc.tenant_id)
 
     if not success:
         raise HTTPException(

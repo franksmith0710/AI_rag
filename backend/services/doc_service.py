@@ -207,7 +207,9 @@ async def delete_document(db: AsyncSession, document_id: int, tenant_id: int) ->
 
     # 删除向量库数据
     try:
-        delete_documents(tenant_id, [str(document_id)])
+        await asyncio.to_thread(
+            delete_documents, tenant_id, where={"document_id": str(document_id)}
+        )
     except Exception as e:
         logger.error(f"删除向量失败: {e}")
 

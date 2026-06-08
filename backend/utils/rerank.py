@@ -77,4 +77,4 @@ def rerank_documents(
 
     except Exception as e:
         logger.warning(f"Rerank 失败: {e}，使用原始排序")
-        return [(i, 1.0) for i in range(len(documents))]
+        return [(i, 1.0) for i in range(min(top_k, len(documents)))]

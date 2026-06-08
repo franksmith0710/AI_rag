@@ -14,7 +14,6 @@ from sqlalchemy.orm import joinedload
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from rank_bm25 import BM25Okapi
-import jieba
 
 from models.db_models import DocumentChunk, Session as SessionModel, Message, Document
 from core.config import get_settings
@@ -43,14 +42,16 @@ STREAM_BUFFER_INTERVAL_MS = 150
 # 来源数量限制
 MAX_SOURCES_COUNT = 3
 
-REWRITE_HISTORY_TURNS = 4   # 改写：只取用户历史问句（不含assistant，不含当前）
-MAX_HISTORY_TOKENS = 4000   # LLM生成：历史对话 token 预算（不含当前 query）
+REWRITE_HISTORY_TURNS = 4      # 改写：只取用户历史问句（不含assistant，不含当前）
+MAX_HISTORY_TOKENS = 6000      # LLM生成：历史对话 token 预算（不含当前 query）
+HISTORY_COMPRESS_THRESHOLD = 3000  # 历史超过此 token 数时主动压缩早期消息
 
 settings = get_settings()
 
 # ── BM25 索引缓存 ──
-_bm25_cache: Dict[int, dict] = {}  # tenant_id → {chunks, bm25}
+_bm25_cache: Dict[int, dict] = {}  # tenant_id → {bm25, chunks_meta}
 BM25_CACHE_MAX = 5
+MAX_CHUNKS_PER_TENANT = 50000  # 单租户最大缓存 chunk 数，防止 OOM
 
 
 def invalidate_bm25_cache(tenant_id: int = None):
@@ -63,18 +64,27 @@ def invalidate_bm25_cache(tenant_id: int = None):
 
 
 def _get_or_build_bm25(tenant_id: int, chunks: list):
-    """获取或构建 BM25 索引（带缓存）"""
+    """获取或构建 BM25 索引（带缓存，只存元数据不存 text）"""
     if tenant_id in _bm25_cache:
         return _bm25_cache[tenant_id]
     # LRU 淘汰
     if len(_bm25_cache) >= BM25_CACHE_MAX:
         oldest_key = next(iter(_bm25_cache))
         del _bm25_cache[oldest_key]
+    # 单租户 chunk 数量限制
+    if len(chunks) > MAX_CHUNKS_PER_TENANT:
+        chunks = chunks[:MAX_CHUNKS_PER_TENANT]
     # jieba 分词
     from utils.splitter import _jieba_cut_for_bm25
     tokenized = [_jieba_cut_for_bm25(c["text"]) for c in chunks]
     bm25 = BM25Okapi(tokenized)
-    _bm25_cache[tenant_id] = {"chunks": chunks, "bm25": bm25, "tokenized": tokenized}
+    # 只缓存元数据，不缓存 text（节省内存）
+    chunks_meta = [
+        {"id": c["id"], "document_id": c["document_id"], "chunk_index": c["chunk_index"],
+         "source": c["source"], "tenant_id": c["tenant_id"]}
+        for c in chunks
+    ]
+    _bm25_cache[tenant_id] = {"bm25": bm25, "chunks_meta": chunks_meta}
     return _bm25_cache[tenant_id]
 
 
@@ -123,7 +133,7 @@ async def summarize_history(cut_messages: List[Dict[str, str]]) -> str:
 概括："""
     try:
         llm = ChatOpenAI(
-            model="deepseek-chat",
+            model=settings.llm_rewrite_model or "deepseek-chat",
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
             temperature=0.1,
@@ -186,7 +196,7 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
                 return []
 
             chunks_result = await db.execute(
-                select(DocumentChunk, DocumentChunk.document_id)
+                select(DocumentChunk, Document.tenant_id)
                 .join(DocumentChunk.document)
                 .where(DocumentChunk.document_id.in_(document_ids))
                 .order_by(DocumentChunk.document_id, DocumentChunk.chunk_index)
@@ -200,6 +210,7 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
                     "chunk_index": chunk.chunk_index,
                     "text": chunk.text,
                     "source": f"document_{chunk.document_id}",
+                    "tenant_id": row[1],
                     "score": 0
                 })
 
@@ -210,23 +221,39 @@ async def bm25_search(db: AsyncSession, query: str, tenant_id: int, top_k: int =
 
         # 使用缓存的 BM25 索引评分
         bm25 = cache_entry["bm25"]
-        chunks = cache_entry["chunks"]
+        chunks_meta = cache_entry["chunks_meta"]
 
         def _score_sync():
             from utils.splitter import _jieba_cut_for_bm25
-            import numpy as np
             query_tokens = _jieba_cut_for_bm25(query)
             return bm25.get_scores(query_tokens)
 
         scores = await asyncio.to_thread(_score_sync)
-        import numpy as np
+
+        ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+        # 收集需要返回的 chunk id
+        top_ids = []
+        top_indices = []
+        for idx in ranked:
+            if scores[idx] > 0:
+                top_ids.append(chunks_meta[idx]["id"])
+                top_indices.append(idx)
+
+        if not top_ids:
+            return []
+
+        # 从 DB 批量获取 text（只查 top_k 条，不缓存）
+        text_result = await db.execute(
+            select(DocumentChunk.id, DocumentChunk.text).where(DocumentChunk.id.in_(top_ids))
+        )
+        text_map = {row[0]: row[1] for row in text_result.all()}
 
         results = []
-        for idx in np.argsort(scores)[::-1][:top_k]:
-            if scores[idx] > 0:
-                chunk = chunks[idx].copy()
-                chunk["score"] = float(scores[idx])
-                results.append(chunk)
+        for idx, chunk_id in zip(top_indices, top_ids):
+            meta = chunks_meta[idx].copy()
+            meta["text"] = text_map.get(chunk_id, "")
+            meta["score"] = float(scores[idx])
+            results.append(meta)
 
         return results
 
@@ -405,7 +432,7 @@ async def generate_answer(
 
     try:
         llm = ChatOpenAI(
-            model="deepseek-chat",
+            model=settings.llm_rewrite_model or "deepseek-chat",
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
             temperature=LLM_TEMPERATURE,
@@ -495,12 +522,14 @@ async def chat_with_rag(
 
     # 给【LLM生成】用：token 滑动窗口（排除当前消息）
     recent = raw_dicts[:-1]
-    history_for_llm = build_token_window(recent, MAX_HISTORY_TOKENS)
 
-    # 长会话摘要：被窗口裁掉的部分（缓存优先）
+    # 主动压缩：历史超过 3000 tokens 时压缩早期部分
+    total_history_tokens = sum(count_tokens(m["content"]) for m in recent)
     history_summary = ""
-    if len(recent) > len(history_for_llm):
-        cut_count = len(recent) - len(history_for_llm)
+
+    if total_history_tokens > HISTORY_COMPRESS_THRESHOLD:
+        kept = build_token_window(recent, HISTORY_COMPRESS_THRESHOLD)
+        cut_count = len(recent) - len(kept)
         if cut_count >= 4:
             cached = await session_service.get_cached_summary_from_redis(
                 session_id, tenant_id, cut_count
@@ -513,6 +542,9 @@ async def chat_with_rag(
                 await session_service.cache_summary_to_redis(
                     session_id, tenant_id, cut_count, history_summary
                 )
+        history_for_llm = kept
+    else:
+        history_for_llm = recent
 
     original_query = query
 

@@ -17,7 +17,7 @@ def create_text_splitter(
 
     Args:
         chunk_size: 分块大小(字符数)，默认 650
-        chunk_overlap: 分块重叠字数，默认 180
+        chunk_overlap: 分块重叠字数，默认 100
         separators: 分隔符列表，按优先级排序
 
     Returns:
@@ -57,3 +57,9 @@ def split_text(text: str, chunk_size: int = 650, chunk_overlap: int = 100) -> Li
     """
     splitter = create_text_splitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     return splitter.split_text(text)
+
+
+def _jieba_cut_for_bm25(text: str) -> list:
+    """BM25 分词：jieba 精确模式"""
+    import jieba
+    return list(jieba.cut(text, cut_all=False))

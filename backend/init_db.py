@@ -74,7 +74,7 @@ async def init_default_data():
                     role=user_data["role"]
                 )
                 session.add(user)
-                logger.info(f"Created {user_data['desc']}: {user_data['username']} / {user_data['password']}")
+                logger.info(f"Created {user_data['desc']}: {user_data['username']}")
 
         await session.commit()
         logger.info("Initialization complete!")

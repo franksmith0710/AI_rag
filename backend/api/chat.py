@@ -37,7 +37,8 @@ async def chat(
     session = await session_service.get_session_by_id(
         db=db,
         session_id=chat_data.session_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id
     )
     if not session:
         raise HTTPException(
@@ -46,12 +47,11 @@ async def chat(
         )
 
     cached = None
-    if settings.redis_enabled:
-        cached_data = await session_service.get_cached_session_from_redis(
-            chat_data.session_id, current_user.tenant_id
-        )
-        if cached_data and cached_data.get("version") == (session.message_version or 0):
-            cached = cached_data["messages"]
+    cached_data = await session_service.get_cached_session_from_redis(
+        chat_data.session_id, current_user.tenant_id
+    )
+    if cached_data and cached_data.get("version") == (session.message_version or 0):
+        cached = cached_data["messages"]
 
     await session_service.add_message(
         db=db,
@@ -110,7 +110,7 @@ async def chat(
                         sources=sources,
                     )
 
-                    if settings.redis_enabled and session.title in (None, "新会话"):
+                    if session.title in (None, "新会话"):
                         try:
                             prompt = f"根据用户问题生成一个简短的会话标题（不超过15个字）：\n{chat_data.message}"
                             llm = ChatOpenAI(
@@ -126,19 +126,18 @@ async def chat(
                         except Exception as e:
                             logger.warning(f"标题生成失败: {e}")
 
-                    if settings.redis_enabled:
-                        try:
-                            session.message_version = (session.message_version or 0) + 1
-                            messages = await session_service.get_session_messages(
-                                db, chat_data.session_id, current_user.tenant_id, current_user.id
-                            )
-                            await session_service.cache_session_to_redis(
-                                chat_data.session_id, current_user.tenant_id,
-                                [m.model_dump(mode='json') for m in messages],
-                                session.message_version
-                            )
-                        except Exception as e:
-                            logger.warning(f"Redis 缓存更新失败: {e}")
+                    try:
+                        session.message_version = (session.message_version or 0) + 1
+                        messages = await session_service.get_session_messages(
+                            db, chat_data.session_id, current_user.tenant_id, current_user.id
+                        )
+                        await session_service.cache_session_to_redis(
+                            chat_data.session_id, current_user.tenant_id,
+                            [m.model_dump(mode='json') for m in messages],
+                            session.message_version
+                        )
+                    except Exception as e:
+                        logger.warning(f"缓存更新失败: {e}")
 
                 logger.info(f"流式完成, answer_len={len(full_answer)}, sources_count={len(sources)}")
             except Exception as e:

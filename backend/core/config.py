@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # ==================== 数据库配置 ====================
 
-    # PostgreSQL 配置 (生产环境使用)
+    # PostgreSQL 配置（默认值仅用于本地开发，生产环境请通过 .env 配置）
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_user: str = "postgres"
@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "your-secret-key-change-in-production"  # JWT 密钥
     jwt_algorithm: str = "HS256"  # JWT 算法
     jwt_expire_minutes: int = 1440  # Token 过期时间(分钟)
+
+    # ==================== CORS 配置 ====================
+    cors_origins: str = "*"  # 允许的来源，逗号分隔，"*" 表示全部
 
     # ==================== 文件上传配置 ====================
     upload_dir: str = "./uploads"  # 上传文件存储目录
