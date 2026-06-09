@@ -226,8 +226,8 @@ async def add_message(
     result = await db.execute(select(SessionModel).where(SessionModel.id == session_id))
     session = result.scalar_one_or_none()
     if session:
-        from datetime import datetime
-        session.updated_at = datetime.now()
+        from datetime import datetime, timezone
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     await db.flush()
     return message

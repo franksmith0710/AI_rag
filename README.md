@@ -301,8 +301,9 @@ backend:
 | `backend/services/session_service.py` | 会话服务 + Redis 缓存 (版本一致性) |
 | `frontend/src/views/Chat.vue` | 聊天页面组件 (SSE 解析 + Markdown 渲染) |
 | `frontend/src/views/Document.vue` | 文档管理页面 |
-| `backend/scripts/evaluate.py` | 轻量评估脚本 (语义相似度 + 关键词召回) |
-| `backend/scripts/generate_test_data.py` | 测试数据生成 (LLM 自动出题) |
+| `backend/scripts/evaluate.py` | RAGAS 评估脚本 (SemanticSimilarity / RougeScore / CHRFScore) |
+| `backend/scripts/generate_eval_data.py` | 测试数据生成 (从 DB chunks 自动生成 QA 对) |
+| `backend/scripts/auto_evaluate.py` | 一键自动评估 (生成数据 + 运行评估) |
 
 ## 目录结构
 
@@ -412,16 +413,21 @@ nvidia-smi
 ```bash
 cd backend
 
-# 1. 先生成测试数据 (从 DB chunks 自动生成 QA 对)
-python scripts/generate_test_data.py
+# 一键自动评估（生成测试数据 + 运行评估）
+python scripts/auto_evaluate.py
+
+# 或分步执行：
+# 1. 生成测试数据（从数据库 chunks 自动提取）
+python scripts/generate_eval_data.py
 
 # 2. 运行评估
 python scripts/evaluate.py
 ```
 
-评估指标:
-- **语义相似度 (sim)**: Embedding 余弦相似度，越高越好 (目标 ≥ 0.7)
-- **关键词召回 (kr)**: Ground Truth 关键词命中率
+评估指标 (RAGAS，纯本地，无需 LLM API):
+- **Semantic Similarity**: 答案与 ground_truth 的语义相似度 (BGE-M3 embedding cosine)
+- **Rouge Score**: N-gram 召回率 (ROUGE-L)
+- **CHRF Score**: 字符级 F-score
 
 结果保存在 `backend/scripts/eval_report.json`。
 

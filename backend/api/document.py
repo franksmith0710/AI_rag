@@ -5,7 +5,6 @@
 """
 import os
 import uuid
-import logging
 import asyncio
 import time
 from typing import Optional, List
@@ -15,7 +14,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db, async_session_maker
 from core.logging_config import setup_logging
-from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse, BatchUploadResult, BatchProcessResult, BatchProcessRequest
+from models.schemas import DocumentResponse, DocumentListResponse, DocumentChunkListResponse, BatchUploadResult, BatchProcessRequest
 from services import doc_service
 from services.rag_service import invalidate_bm25_cache
 from api.auth import get_current_user
@@ -95,7 +94,6 @@ async def upload_document(
 
     # 保存文件到本地
     async with aiofiles.open(file_path, "wb") as f:
-        content = await file.read()
         await f.write(content)
 
     # 创建文档记录
@@ -282,6 +280,17 @@ async def process_document(
 
 # ==================== 批量处理 ====================
 
+MAX_CONCURRENT_DOCS = 2  # 最多同时处理的文档数，防止显存/内存 OOM
+
+_process_sem = asyncio.Semaphore(MAX_CONCURRENT_DOCS)
+
+
+async def _process_one_limited(document_id: int, tenant_id: int, force: bool = False) -> dict:
+    """带并发限制的文档处理"""
+    async with _process_sem:
+        return await _process_one(document_id, tenant_id, force)
+
+
 async def _process_one(document_id: int, tenant_id: int, force: bool = False) -> dict:
     """处理单个文档（独立 DB session，用于并行调用）"""
     async with async_session_maker() as session:
@@ -340,7 +349,7 @@ async def process_batch(
     if not req.document_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未选择任何文档")
 
-    tasks = [_process_one(doc_id, current_user.tenant_id, force=req.force) for doc_id in req.document_ids]
+    tasks = [_process_one_limited(doc_id, current_user.tenant_id, force=req.force) for doc_id in req.document_ids]
     results = await asyncio.gather(*tasks)
 
     success_count = sum(1 for r in results if r["success"])

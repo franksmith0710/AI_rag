@@ -59,3 +59,6 @@ tiktoken>=0.7.0
 
 # ONNX Runtime (GPU)
 onnxruntime-gpu>=1.17.0
+
+# RAGAS evaluation framework
+ragas>=0.4.3

@@ -2,7 +2,7 @@
 会话管理 API 路由模块
 提供会话创建、列表、详情、删除、更新等接口
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from models.schemas import SessionCreate, SessionResponse, SessionListResponse

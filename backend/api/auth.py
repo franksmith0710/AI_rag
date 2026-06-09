@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from models.schemas import UserCreate, UserLogin, TokenResponse, UserResponse
 from services import auth_service
-from utils.common import ApiResponse
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 security = HTTPBearer()

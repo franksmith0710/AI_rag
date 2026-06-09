@@ -122,9 +122,10 @@ def add_documents(
     tenant_id: int,
     texts: List[str],
     metadatas: List[Dict[str, Any]],
-    ids: List[str] = None
+    ids: List[str] = None,
+    batch_size: int = 32,
 ):
-    """添加文档到向量库"""
+    """添加文档到向量库（分批 embedding + upsert，防止 OOM）"""
     client = _get_client(tenant_id)
     collection_name = f"tenant_{tenant_id}_documents"
 
@@ -159,59 +160,73 @@ def add_documents(
             }
         )
 
-    embeddings = get_embedding_model().embed_documents(texts)
-    valid_texts = []
-    valid_metadatas = []
-    valid_ids = []
-    valid_embeddings = []
+    em = get_embedding_model()
+    total = len(texts)
+    upserted = 0
 
-    for i, (text, emb) in enumerate(zip(texts, embeddings)):
-        if emb and len(emb) > 0:
-            valid_texts.append(text)
-            valid_metadatas.append(metadatas[i])
-            valid_ids.append(ids[i] if ids else hashlib.md5(text.encode()).hexdigest())
-            valid_embeddings.append(emb)
-        else:
-            logger.warning(f"跳过无效文本 {i}: 向量为空")
+    for start in range(0, total, batch_size):
+        end = min(start + batch_size, total)
+        batch_texts = texts[start:end]
+        batch_metadatas = metadatas[start:end]
+        batch_ids = [ids[i] if ids else hashlib.md5(texts[i].encode()).hexdigest()
+                     for i in range(start, end)]
 
-    if not valid_texts:
-        logger.error("所有文本的向量生成失败")
+        batch_embeddings = em.embed_documents(batch_texts)
+
+        valid_ids = []
+        valid_texts = []
+        valid_metadatas = []
+        valid_embeddings = []
+
+        for i, (text, meta, doc_id, emb) in enumerate(
+            zip(batch_texts, batch_metadatas, batch_ids, batch_embeddings)
+        ):
+            if emb and len(emb) > 0:
+                valid_ids.append(doc_id)
+                valid_texts.append(text)
+                valid_metadatas.append(meta)
+                valid_embeddings.append(emb)
+            else:
+                logger.warning(f"跳过无效文本 {start+i}: 向量为空")
+
+        if valid_ids:
+            try:
+                collection.upsert(
+                    ids=valid_ids,
+                    embeddings=valid_embeddings,
+                    documents=valid_texts,
+                    metadatas=valid_metadatas,
+                )
+                upserted += len(valid_ids)
+            except Exception as e:
+                logger.error(f"Chroma upsert 失败: {type(e).__name__}: {e}, 正在尝试重建...")
+                try:
+                    client.delete_collection(name=collection_name)
+                except Exception:
+                    pass
+                collection = client.create_collection(
+                    name=collection_name,
+                    metadata={
+                        "hnsw:space": "cosine",
+                        "hnsw:construction_ef": 100,
+                        "hnsw:search_ef": 50,
+                        "hnsw:M": 16
+                    }
+                )
+                collection.upsert(
+                    ids=valid_ids,
+                    embeddings=valid_embeddings,
+                    documents=valid_texts,
+                    metadatas=valid_metadatas,
+                )
+                upserted += len(valid_ids)
+
+        logger.info(f"  进度 {upserted}/{total}")
+
+    if upserted == 0:
         raise RuntimeError("所有文本的向量生成失败")
 
-    try:
-        collection.upsert(
-            ids=valid_ids,
-            embeddings=valid_embeddings,
-            documents=valid_texts,
-            metadatas=valid_metadatas
-        )
-        logger.info(f"成功添加 {len(valid_texts)} 个文档到向量库")
-    except Exception as e:
-        logger.error(f"Chroma 添加文档失败: {type(e).__name__}: {e}, 正在尝试重建 collection...")
-        try:
-            client.delete_collection(name=collection_name)
-        except Exception:
-            pass
-        collection = client.create_collection(
-            name=collection_name,
-            metadata={
-                "hnsw:space": "cosine",
-                "hnsw:construction_ef": 100,
-                "hnsw:search_ef": 50,
-                "hnsw:M": 16
-            }
-        )
-        try:
-            collection.upsert(
-                ids=valid_ids,
-                embeddings=valid_embeddings,
-                documents=valid_texts,
-                metadatas=valid_metadatas
-            )
-            logger.info(f"重建 collection 后成功添加 {len(valid_texts)} 个文档")
-        except Exception as e2:
-            logger.error(f"重建后仍然失败: {type(e2).__name__}: {e2}", exc_info=True)
-            raise RuntimeError(f"Chroma 添加文档失败: {type(e2).__name__}: {e2}")
+    logger.info(f"成功添加 {upserted}/{total} 个文档到向量库")
 
 
 def similarity_search(
