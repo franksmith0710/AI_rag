@@ -56,10 +56,10 @@ async def rewrite_query(query: str, conversation_history: List[Dict] = None) -> 
 
     history_str = "\n".join([
         f"{m['role']}: {m['content']}"
-        for m in conversation_history[-5:]
+        for m in conversation_history
     ])
 
-    prompt = f"""【历史用户问题】
+    prompt = f"""【对话历史】
 {history_str}
 
 【当前问题】
@@ -104,8 +104,8 @@ async def rewrite_and_expand(
         return query, variants
 
     history_str = "\n".join([
-        f"user: {m['content']}"
-        for m in conversation_history[-5:]
+        f"{m['role']}: {m['content']}"
+        for m in conversation_history
     ])
 
     extra = num_variants - 1

@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     reranker_onnx_path: str = "/models/BAAI/bge-reranker-v2-m3-onnx/bge-reranker-v2-m3.onnx"
     embedding_model_path: str = "/models/BAAI/bge-m3"
     embedding_onnx_path: str = "/models/BAAI/bge-m3-onnx/bge-m3.onnx"
-    reranker_threshold: float = 0.1
+    reranker_threshold: float = 0.15
     llm_rewrite_model: str = "deepseek-chat"
     query_variant_enabled: bool = True
     query_variant_count: int = 3

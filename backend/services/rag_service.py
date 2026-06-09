@@ -42,8 +42,6 @@ STREAM_BUFFER_INTERVAL_MS = 150
 # 来源数量限制
 MAX_SOURCES_COUNT = 3
 
-REWRITE_HISTORY_TURNS = 4      # 改写：只取用户历史问句（不含assistant，不含当前）
-MAX_HISTORY_TOKENS = 6000      # LLM生成：历史对话 token 预算（不含当前 query）
 HISTORY_COMPRESS_THRESHOLD = 3000  # 历史超过此 token 数时主动压缩早期消息
 
 settings = get_settings()
@@ -502,13 +500,7 @@ async def chat_with_rag(
         raw_orm = list(messages_result.scalars().all())
         raw_dicts = [{"role": m.role, "content": m.content} for m in raw_orm]
 
-    # ===================== 历史拆分 =====================
-    # 给【改写+检索】用：只取最近4条用户问句
-    history_for_rewrite = (
-        [m for m in raw_dicts if m["role"] == "user"][-REWRITE_HISTORY_TURNS:]
-        if raw_dicts else []
-    )
-
+    # ===================== 历史压缩（先压缩，后构建改写历史） =====================
     # 给【LLM生成】用：token 滑动窗口（排除当前消息）
     recent = raw_dicts[:-1]
 
@@ -534,6 +526,12 @@ async def chat_with_rag(
         history_for_llm = kept
     else:
         history_for_llm = recent
+
+    # 给【改写+检索】用：摘要 + 压缩后保留的所有用户消息
+    history_for_rewrite = []
+    if history_summary:
+        history_for_rewrite.append({"role": "system", "content": f"早期对话摘要：{history_summary}"})
+    history_for_rewrite.extend([m for m in history_for_llm if m["role"] == "user"])
 
     original_query = query
 
@@ -589,10 +587,10 @@ async def chat_with_rag(
     logger.info(f"chat_with_rag: 开始重排 rerank_top_k={RERANK_TOP_K}")
     reranked = await rerank_results(search_query, search_results, RERANK_TOP_K)
 
-    relevant_results = [r for r in reranked[:RERANK_TOP_K] if r.get("rerank_score", 0) >= 0.1]
+    relevant_results = [r for r in reranked[:RERANK_TOP_K] if r.get("rerank_score", 0) >= settings.reranker_threshold]
 
     if not relevant_results:
-        logger.warning(f"重排结果均低于阈值 0.1, top_score={reranked[0].get('rerank_score', 0):.4f}" if reranked else "重排无结果")
+        logger.warning(f"重排结果均低于阈值 {settings.reranker_threshold}, top_score={reranked[0].get('rerank_score', 0):.4f}" if reranked else "重排无结果")
         yield {"type": "error", "content": "当前文档未收录该问题"}
         yield {"type": "done", "sources": []}
         return

@@ -43,7 +43,7 @@ services:
       - ./backend/uploads:/app/uploads
       - ./backend/vector_store:/app/vector_store
       - ./backend/logs:/app/logs
-      - D:\hf_models:/models
+      - ${MODELS_VOLUME:-/opt/hf_models}:/models
     env_file:
       - .env
     environment:
