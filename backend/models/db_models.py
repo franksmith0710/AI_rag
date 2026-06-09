@@ -3,7 +3,7 @@
 使用 SQLAlchemy ORM 定义所有数据库表结构
 """
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from core.database import Base
 
@@ -81,6 +81,9 @@ class DocumentChunk(Base):
     存储文档分块后的文本内容，与向量库配合使用
     """
     __tablename__ = "document_chunks"
+    __table_args__ = (
+        UniqueConstraint("document_id", "chunk_index", name="uq_doc_chunk"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)  # 所属文档

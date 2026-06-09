@@ -6,6 +6,7 @@
 import logging
 from typing import List, Tuple
 import onnxruntime
+import threading
 from transformers import AutoTokenizer
 from core.config import get_settings
 from core.logging_config import setup_logging
@@ -15,19 +16,22 @@ settings = get_settings()
 
 _reranker_model = None
 _reranker_tokenizer = None
+_reranker_lock = threading.Lock()
 
 
 def _get_reranker():
-    """获取 reranker 模型单例，延迟加载"""
+    """获取 reranker 模型单例，延迟加载（线程安全）"""
     global _reranker_model, _reranker_tokenizer
     if _reranker_model is None:
-        logger.info(f"加载 ONNX Reranker 模型: {settings.reranker_onnx_path}")
-        _reranker_tokenizer = AutoTokenizer.from_pretrained(settings.reranker_model_path)
-        _reranker_model = onnxruntime.InferenceSession(
-            settings.reranker_onnx_path,
-            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-        )
-        logger.info(f"Reranker ONNX 模型加载完成, providers={_reranker_model.get_providers()}")
+        with _reranker_lock:
+            if _reranker_model is None:
+                logger.info(f"加载 ONNX Reranker 模型: {settings.reranker_onnx_path}")
+                _reranker_tokenizer = AutoTokenizer.from_pretrained(settings.reranker_model_path)
+                _reranker_model = onnxruntime.InferenceSession(
+                    settings.reranker_onnx_path,
+                    providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+                )
+                logger.info(f"Reranker ONNX 模型加载完成, providers={_reranker_model.get_providers()}")
     return _reranker_model, _reranker_tokenizer
 
 

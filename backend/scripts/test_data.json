@@ -2,31 +2,901 @@
   {
     "chunk_id": 8,
     "document_title": "修腾豪-大模型应用开发实习生",
-    "question": "北华航天工业学院 - 本科                       人工智能                                      2023.9-至今 ？",
-    "ground_truth": "北华航天工业学院 - 本科                       人工智能                                      2023.9-至今 \n教育背景 \n项目经历 \n多轮对话深度研究 Agent——Deep Research Agent                                       2026.03–2026.05 \n项目介绍：基于 LangGraph 构建轻量化端到端深度调研 Agent，支持用户多轮迭代式研究。自动完成意图识别、子查询规划、联网检\n索、信息萃取、覆盖度校验，输出结构化报告，支持会话内增量追问与章节补全。 \n技术栈：LangGraph、FastAPI、DeepSeek API、PostgreSQL/pgvector、bge-m3、Vue3、LangSmith \n• 基于 LangGraph 搭建 Agent 编排引擎，设计多场景意图路由，条件分支按意图选择执行路径，核心检索提取管线跨路径复用 \n• 构建信息覆盖度评估与自适应迭代机制，自动校验信息完备性并动态补充检索；识别观点冲突时自动回溯原文，依托  LLM 完成上\n下文事实比对裁决，疑难场景触发人工介入 \n• 落地 HITL 人机协同，依托中断与检查点持久化，在范围、检索方向、冲突采信、报告大纲节点实现人工干预与流程恢复"
+    "question": "这个项目的主要功能是什么？",
+    "ground_truth": "基于LangGraph构建轻量化端到端深度调研Agent，支持用户多轮迭代式研究，自动完成意图识别、子查询规划、联网检索、信息萃取、覆盖度校验，输出结构化报告，并支持会话内增量追问与章节补全。"
+  },
+  {
+    "chunk_id": 8,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "项目使用了哪些技术栈？",
+    "ground_truth": "技术栈包括LangGraph、FastAPI、DeepSeek API、PostgreSQL/pgvector、bge-m3、Vue3和LangSmith。"
+  },
+  {
+    "chunk_id": 8,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "项目如何处理观点冲突的情况？",
+    "ground_truth": "识别观点冲突时自动回溯原文，依托LLM完成上下文事实比对裁决，疑难场景触发人工介入。"
   },
   {
     "chunk_id": 9,
     "document_title": "修腾豪-大模型应用开发实习生",
-    "question": "下文事实比对裁决，疑难场景触发人工介入 ？",
-    "ground_truth": "下文事实比对裁决，疑难场景触发人工介入 \n• 落地 HITL 人机协同，依托中断与检查点持久化，在范围、检索方向、冲突采信、报告大纲节点实现人工干预与流程恢复 \n• 构建三级渐进式记忆架构， 分层存储原文、 核心事实与会话摘要； 基于 pgvector HNSW 索引实现语义检索， 通过 LLM 过滤与向\n量去重优化记忆质量 \n• 设计分角色 Prompt 体系，由大模型统一完成指代消解、子查询拆解、覆盖度评估、报告生成等多类推理任务 \n \n企业级 RAG 知识问答系统                                                                2026.01–2026.02 \n项目介绍:本项目针对企业内部私有文档沉淀与查阅痛点，开发私有化 RAG 知识问答平台，支持支持 PDF/DOCX/TXT/MD 多格式文\n档上传、结构化入库、智能语义问答，实现企业内部知识可检索、可问答、权限可管控。 \n技术栈： DeepSeek -v4、LangChain 、bge-m3、FastAPI、Chroma、PostgreSQL \n• 独立负责 RAG 全流程开发，包含文档上传、语义分块、BGE-M3 向量化、混合检索、BGE 重排序与 DeepSeek 答案生成，实\n现从文档入库到智能问答的完整闭环 \n• 采用向量检索 + BM25 混合召回与 BGE-reranker 重排序策略，结合阈值过滤低相关结果，有效提升了检索匹配精度"
+    "question": "这个系统如何处理用户提问中的指代不清或复杂查询？",
+    "ground_truth": "系统设计了分角色Prompt体系，由大模型统一完成指代消解、子查询拆解、覆盖度评估、报告生成等多类推理任务，从而处理指代不清或复杂查询。"
+  },
+  {
+    "chunk_id": 9,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "在RAG系统中，如何确保检索结果的准确性？",
+    "ground_truth": "系统采用向量检索 + BM25混合召回与BGE-reranker重排序策略，结合阈值过滤低相关结果，有效提升了检索匹配精度。"
+  },
+  {
+    "chunk_id": 9,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "系统支持哪些文档格式的上传？",
+    "ground_truth": "系统支持PDF、DOCX、TXT、MD等多种格式文档的上传。"
   },
   {
     "chunk_id": 10,
     "document_title": "修腾豪-大模型应用开发实习生",
-    "question": "现从文档入库到智能问答的完整闭环 \n• 采用向量检索 + BM25 混合召回与 BGE-reranker 重排序策略，结合阈值过滤低相关结果，有效提升了检索匹配精度 \n• 设计多租户数据隔离架构，实现租户间数据与知识库独立隔离，支持公共文档共享？",
-    "ground_truth": "现从文档入库到智能问答的完整闭环 \n• 采用向量检索 + BM25 混合召回与 BGE-reranker 重排序策略，结合阈值过滤低相关结果，有效提升了检索匹配精度 \n• 设计多租户数据隔离架构，实现租户间数据与知识库独立隔离，支持公共文档共享。 \n• 基于 PostgreSQL 设计用户、会话、历史、文档等数据表，实现数据持久化与可追溯 \n• 采用前后端分离架构，使用 Vue3 开发前端界面，配置 GPU 直通，通过 Docker Compose 完成容器化部署 \n \n基 LangGraph 的多场景智能客服 Agent                                                 2025.11–2025.12 \n项目介绍:面向平台客服业务场景，搭建基于 LangGraph 的智能客服 Agent 系统，实现多轮对话、意图识别、业务工具调用与自动应\n答，可覆盖订单、物流、产品咨询、转人工等主流客服场景 \n• 设计双 LLM 协同架构，采用规则优先+LLM 兜底的调度策，显著提升复杂咨询的处理准确率与响应速度 \n• 基于 LangGraph 构建多轮对话状态机，实现跨轮槽位自动累积与上下文追踪，解决多轮对话中的指代消解与信息断层问题 \n• 整合 ChromaDB + BM25 混合检索 RAG 知识库，覆盖产品参数、售后 FAQ 等知识域，提升产品咨询回答的准确性与覆盖率"
+    "question": "这个系统是如何提高检索匹配精度的？",
+    "ground_truth": "采用向量检索 + BM25 混合召回与 BGE-reranker 重排序策略，结合阈值过滤低相关结果，有效提升了检索匹配精度。"
+  },
+  {
+    "chunk_id": 10,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "多租户数据隔离架构有什么特点？",
+    "ground_truth": "多租户数据隔离架构实现了租户间数据与知识库独立隔离，同时支持公共文档共享。"
+  },
+  {
+    "chunk_id": 10,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "智能客服 Agent 系统如何处理多轮对话中的指代消解问题？",
+    "ground_truth": "基于 LangGraph 构建多轮对话状态机，实现跨轮槽位自动累积与上下文追踪，从而解决多轮对话中的指代消解与信息断层问题。"
   },
   {
     "chunk_id": 11,
     "document_title": "修腾豪-大模型应用开发实习生",
-    "question": "• 整合 ChromaDB + BM25 混合检索 RAG 知识库，覆盖产品参数、售后 FAQ 等知识域，提升产品咨询回答的准确性与覆盖率 ？",
-    "ground_truth": "• 整合 ChromaDB + BM25 混合检索 RAG 知识库，覆盖产品参数、售后 FAQ 等知识域，提升产品咨询回答的准确性与覆盖率 \n• 基于 FastAPI 开发后端接口，通过 Streamlit 搭建交互界面，LangSmith 实现对话链路追踪与调试，并完成 Docker 容器化部署 \n姓名：修腾豪               出生日期 ：2004.7            意向岗位：AI Agent 开发实习生 \n联系电话：18622664389    邮箱：p1640298623@163.com  \n作品集：github.com/franksmith0710 \n \n \n专业技能 \n• 熟悉 RAG 全流程开发与优化，熟练掌握文档处理、文本分块、混合检索、重排序及幻觉抑制  \n• 熟练使用 LangChain、LangGraph 搭建 Agent 工作流，实现工具调用、多轮对话与流程编排  \n• 熟悉 Ollama 本地模型部署，掌握 DeepSeek、GLM、Qwen 等大模型调用与 Prompt 工程  \n• 熟练使用 Hugging Face 生态，了解 Transformer 架构与 LoRA 微调  \n• 了解 vLLM、SGLang、TensorRT 等模型推理加速技术  \n• 熟练掌握 Python 开发，掌握 FastAPI 后端开发，熟悉 Vue3 前端技术"
+    "question": "这个RAG知识库整合了哪些检索技术？覆盖了哪些知识域？",
+    "ground_truth": "整合了ChromaDB + BM25混合检索技术，覆盖产品参数、售后FAQ等知识域。"
+  },
+  {
+    "chunk_id": 11,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "修腾豪使用了哪些工具来开发后端接口和搭建交互界面？",
+    "ground_truth": "基于FastAPI开发后端接口，通过Streamlit搭建交互界面。"
+  },
+  {
+    "chunk_id": 11,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "修腾豪的意向岗位是什么？他的出生日期是哪一年？",
+    "ground_truth": "意向岗位是AI Agent开发实习生，出生日期是2004年7月。"
   },
   {
     "chunk_id": 12,
     "document_title": "修腾豪-大模型应用开发实习生",
-    "question": "• 了解 vLLM、SGLang、TensorRT 等模型推理加速技术  ？",
-    "ground_truth": "• 了解 vLLM、SGLang、TensorRT 等模型推理加速技术  \n• 熟练掌握 Python 开发，掌握 FastAPI 后端开发，熟悉 Vue3 前端技术  \n• 掌握 PostgreSQL、MySQL 关系型数据库，熟悉 ChromaDB、FAISS、Milvus 向量数据库  \n• 熟练使用 Linux、Git、Docker、Docker Compose 完成工程化部署与服务上线"
+    "question": "vLLM、SGLang、TensorRT 这些技术主要用来做什么？",
+    "ground_truth": "这些技术主要用于模型推理加速，提高模型运行效率。"
+  },
+  {
+    "chunk_id": 12,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "文本中提到了哪些后端和前端开发技术？",
+    "ground_truth": "后端开发技术是 FastAPI，前端技术是 Vue3。"
+  },
+  {
+    "chunk_id": 12,
+    "document_title": "修腾豪-大模型应用开发实习生",
+    "question": "在工程化部署方面，需要掌握哪些工具？",
+    "ground_truth": "需要熟练使用 Linux、Git、Docker、Docker Compose 完成工程化部署与服务上线。"
+  },
+  {
+    "chunk_id": 393,
+    "document_title": "互联网系统技术文档",
+    "question": "本文档支持哪四种格式？",
+    "ground_truth": "本文档支持MD、TXT、Word、PDF四种格式。"
+  },
+  {
+    "chunk_id": 393,
+    "document_title": "互联网系统技术文档",
+    "question": "TXT格式适合什么场景？",
+    "ground_truth": "TXT格式适合RAG导入、纯文本读取。"
+  },
+  {
+    "chunk_id": 393,
+    "document_title": "互联网系统技术文档",
+    "question": "本文档的核心内容是什么？",
+    "ground_truth": "本文档核心内容为互联网分布式系统技术规范，旨在规范设计、开发、部署、运维全流程。"
+  },
+  {
+    "chunk_id": 394,
+    "document_title": "互联网系统技术文档",
+    "question": "这个文档适用于哪些类型的互联网系统？",
+    "ground_truth": "适用于公司所有互联网分布式系统，包括Web应用、移动端接口服务、后台服务、数据处理系统等。"
+  },
+  {
+    "chunk_id": 394,
+    "document_title": "互联网系统技术文档",
+    "question": "文档覆盖了哪些技术人员的工作范围？",
+    "ground_truth": "覆盖了开发、测试、运维、架构师等所有参与系统相关工作的技术人员，以及相关业务对接人员。"
+  },
+  {
+    "chunk_id": 394,
+    "document_title": "互联网系统技术文档",
+    "question": "文档的适用范围包括系统的哪些生命周期阶段？",
+    "ground_truth": "包括设计、开发、测试、部署、运维全生命周期。"
+  },
+  {
+    "chunk_id": 395,
+    "document_title": "互联网系统技术文档",
+    "question": "什么是分布式系统？",
+    "ground_truth": "分布式系统是由多个独立的计算机节点通过网络连接，协同完成计算、存储、通信等任务，对外提供统一服务的系统，节点间通过消息传递实现数据交互和协同工作。"
+  },
+  {
+    "chunk_id": 395,
+    "document_title": "互联网系统技术文档",
+    "question": "高可用系统的核心指标有哪些？",
+    "ground_truth": "高可用系统的核心指标是MTBF（平均无故障时间）和MTTR（平均恢复时间）。"
+  },
+  {
+    "chunk_id": 395,
+    "document_title": "互联网系统技术文档",
+    "question": "负载均衡的主要作用是什么？",
+    "ground_truth": "负载均衡的主要作用是将用户请求均匀分配到多个服务器节点，避免单一节点过载，提升系统并发处理能力和可用性。"
+  },
+  {
+    "chunk_id": 396,
+    "document_title": "互联网系统技术文档",
+    "question": "什么是CI/CD？",
+    "ground_truth": "CI/CD是持续集成和持续部署，通过自动化工具实现代码提交、构建、测试、部署的全流程自动化，提升开发效率，减少人为失误。"
+  },
+  {
+    "chunk_id": 396,
+    "document_title": "互联网系统技术文档",
+    "question": "监控告警系统如何工作？",
+    "ground_truth": "监控告警系统通过工具如Prometheus和Grafana实时采集系统运行指标（如CPU、内存、磁盘、接口响应时间），当指标超出阈值时，通过短信、邮件、钉钉等方式告警，以便及时发现并处理故障。"
+  },
+  {
+    "chunk_id": 396,
+    "document_title": "互联网系统技术文档",
+    "question": "容灾备份的核心指标有哪些？",
+    "ground_truth": "容灾备份的核心指标是RPO（恢复点目标）和RTO（恢复时间目标），用于确保数据不丢失并在重大故障时快速恢复系统服务。"
+  },
+  {
+    "chunk_id": 397,
+    "document_title": "互联网系统技术文档",
+    "question": "这个文档的版本历史中，哪个版本新增了安全规范和CI/CD自动化流程？",
+    "ground_truth": "V1.2版本新增了安全规范、CI/CD自动化流程，完善监控告警指标，补充容灾备份具体方案。"
+  },
+  {
+    "chunk_id": 397,
+    "document_title": "互联网系统技术文档",
+    "question": "系统的整体架构分为哪几层？",
+    "ground_truth": "系统采用分层设计，从下至上分为基础设施层、数据层、服务层、网关层、应用层。"
+  },
+  {
+    "chunk_id": 397,
+    "document_title": "互联网系统技术文档",
+    "question": "应用层的主要职责是什么？",
+    "ground_truth": "应用层面向用户的前端应用（Web端、移动端、小程序），负责用户交互和数据展示，通过API接口与后端服务通信。"
+  },
+  {
+    "chunk_id": 398,
+    "document_title": "互联网系统技术文档",
+    "question": "微服务架构中，网关层的主要作用是什么？",
+    "ground_truth": "网关层是统一入口，负责请求路由、负载均衡、权限校验、限流熔断、日志收集，隔离前端与后端服务，提升系统安全性和可维护性。"
+  },
+  {
+    "chunk_id": 398,
+    "document_title": "互联网系统技术文档",
+    "question": "微服务拆分遵循哪些原则？",
+    "ground_truth": "微服务拆分遵循“单一职责、高内聚、低耦合”原则，即每个微服务仅负责一个核心业务领域，内部功能模块紧密关联，服务之间通过标准化API接口通信以减少依赖。"
+  },
+  {
+    "chunk_id": 398,
+    "document_title": "互联网系统技术文档",
+    "question": "数据层包含哪些组件？",
+    "ground_truth": "数据层包括关系型数据库、NoSQL数据库、缓存、消息队列、数据仓库等，负责数据存储和管理，确保数据的安全性、一致性和高可用性。"
+  },
+  {
+    "chunk_id": 399,
+    "document_title": "互联网系统技术文档",
+    "question": "微服务之间如何实现低耦合？",
+    "ground_truth": "微服务之间通过标准化的API接口通信，减少直接依赖，并通过消息队列、服务注册发现等机制实现解耦。"
+  },
+  {
+    "chunk_id": 399,
+    "document_title": "互联网系统技术文档",
+    "question": "微服务的可扩展性体现在哪里？",
+    "ground_truth": "每个微服务可独立扩展，根据业务流量需求单独增加服务器节点，不影响其他服务。"
+  },
+  {
+    "chunk_id": 399,
+    "document_title": "互联网系统技术文档",
+    "question": "系统核心微服务模块是如何协同工作的？",
+    "ground_truth": "各模块独立部署、独立维护，通过API接口协同工作。"
+  },
+  {
+    "chunk_id": 400,
+    "document_title": "互联网系统技术文档",
+    "question": "用户服务（User Service）的核心功能包括哪些？",
+    "ground_truth": "用户注册、登录、信息查询/修改、权限管理、验证码发送、账号注销等。"
+  },
+  {
+    "chunk_id": 400,
+    "document_title": "互联网系统技术文档",
+    "question": "订单服务（Order Service）依赖哪些其他微服务？",
+    "ground_truth": "用户服务、商品服务、支付服务、物流服务。"
+  },
+  {
+    "chunk_id": 400,
+    "document_title": "互联网系统技术文档",
+    "question": "支付服务（Payment Service）使用了哪些技术栈？",
+    "ground_truth": "Spring Boot、MyBatis-Plus、MySQL、Redis、RabbitMQ。"
+  },
+  {
+    "chunk_id": 401,
+    "document_title": "互联网系统技术文档",
+    "question": "短信服务主要支持哪些类型的短信发送？",
+    "ground_truth": "短信服务支持验证码、通知和营销短信的发送。"
+  },
+  {
+    "chunk_id": 401,
+    "document_title": "互联网系统技术文档",
+    "question": "日志服务使用哪些技术栈来实现系统日志的收集和分析？",
+    "ground_truth": "日志服务使用Spring Boot、Elasticsearch、Logstash和Kibana来实现系统日志的收集、存储、查询、分析和告警。"
+  },
+  {
+    "chunk_id": 401,
+    "document_title": "互联网系统技术文档",
+    "question": "网关服务在微服务架构中承担哪些核心功能？",
+    "ground_truth": "网关服务承担请求路由、负载均衡、权限校验、限流熔断、日志收集和接口转发等核心功能。"
+  },
+  {
+    "chunk_id": 402,
+    "document_title": "互联网系统技术文档",
+    "question": "Nacos如何检测微服务的健康状态？",
+    "ground_truth": "Nacos定期向各微服务发送健康检查请求（如HTTP请求、TCP连接），若微服务未响应或响应异常，Nacos将其标记为不健康状态，并从注册表中剔除。"
+  },
+  {
+    "chunk_id": 402,
+    "document_title": "互联网系统技术文档",
+    "question": "微服务之间如何实现服务发现？",
+    "ground_truth": "微服务之间通过服务名称向Nacos注册中心查询目标服务的IP地址和端口号，无需硬编码服务地址，实现服务地址的动态获取。"
+  },
+  {
+    "chunk_id": 402,
+    "document_title": "互联网系统技术文档",
+    "question": "同步通信适用于哪些业务场景？",
+    "ground_truth": "同步通信适用于需要实时响应的业务场景，如用户查询订单、商品查询库存等。"
+  },
+  {
+    "chunk_id": 403,
+    "document_title": "互联网系统技术文档",
+    "question": "HTTP通信和RPC通信分别适用于什么场景？",
+    "ground_truth": "HTTP通信适用于服务间交互频率较低、数据量较小的场景；RPC通信适用于服务间交互频繁、数据量较大的场景，如订单服务与商品服务的库存扣减。"
+  },
+  {
+    "chunk_id": 403,
+    "document_title": "互联网系统技术文档",
+    "question": "消息队列在异步通信中有什么核心作用？",
+    "ground_truth": "消息队列的核心作用是解耦、削峰、异步处理，确保消息可靠传输，支持消息持久化和重试机制。"
+  },
+  {
+    "chunk_id": 403,
+    "document_title": "互联网系统技术文档",
+    "question": "MySQL数据库采用了什么部署方式来提升并发处理能力？",
+    "ground_truth": "MySQL采用主从复制架构，主库负责写入，从库负责读取，实现读写分离；核心业务数据库采用双主架构，确保主库故障时快速切换。"
+  },
+  {
+    "chunk_id": 404,
+    "document_title": "互联网系统技术文档",
+    "question": "数据库读写分离是如何实现的？",
+    "ground_truth": "采用主从复制架构，主库负责写入，从库负责读取，实现读写分离，提升数据库并发处理能力。"
+  },
+  {
+    "chunk_id": 404,
+    "document_title": "互联网系统技术文档",
+    "question": "当数据量超过1000万条时，数据库会采取什么策略？",
+    "ground_truth": "采用分库分表策略，包括水平分表（按用户ID、订单ID等字段分片）和垂直分库（按业务模块拆分，如用户库、订单库、商品库）。"
+  },
+  {
+    "chunk_id": 404,
+    "document_title": "互联网系统技术文档",
+    "question": "Redis如何保证缓存高可用？",
+    "ground_truth": "采用集群部署（主从加哨兵）确保缓存高可用，核心业务缓存采用持久化策略（RDB加AOF），并设置合理过期时间、缓存预热和更新机制。"
+  },
+  {
+    "chunk_id": 405,
+    "document_title": "互联网系统技术文档",
+    "question": "消息队列RabbitMQ有哪些核心功能来确保消息可靠传输？",
+    "ground_truth": "RabbitMQ支持消息持久化、重试机制和死信队列，确保消息可靠传输。"
+  },
+  {
+    "chunk_id": 405,
+    "document_title": "互联网系统技术文档",
+    "question": "MinIO对象存储兼容什么协议？",
+    "ground_truth": "MinIO兼容S3协议。"
+  },
+  {
+    "chunk_id": 405,
+    "document_title": "互联网系统技术文档",
+    "question": "数据库设计中，索引的命名规范是什么？",
+    "ground_truth": "索引名采用“idx_表名_字段名”格式，例如idx_user_id。"
+  },
+  {
+    "chunk_id": 406,
+    "document_title": "互联网系统技术文档",
+    "question": "在数据库字段设计中，为什么建议避免使用UUID作为主键？",
+    "ground_truth": "UUID性能差且排序困难，因此建议使用自增ID或雪花算法ID。"
+  },
+  {
+    "chunk_id": 406,
+    "document_title": "互联网系统技术文档",
+    "question": "索引设计中，联合索引应遵循什么原则？",
+    "ground_truth": "联合索引应遵循“最左前缀原则”，例如查询条件为user_id+order_no时，联合索引应建立为idx_user_id_order_no。"
+  },
+  {
+    "chunk_id": 406,
+    "document_title": "互联网系统技术文档",
+    "question": "在事务设计中，哪些核心业务必须使用事务？",
+    "ground_truth": "核心业务如订单创建、支付、库存扣减必须使用事务，以确保数据一致性。"
+  },
+  {
+    "chunk_id": 407,
+    "document_title": "互联网系统技术文档",
+    "question": "事务设计中，核心业务如订单创建、支付、库存扣减必须使用什么机制来确保数据一致性？",
+    "ground_truth": "必须使用事务，采用Spring Transaction注解实现事务管理。"
+  },
+  {
+    "chunk_id": 407,
+    "document_title": "互联网系统技术文档",
+    "question": "缓存Key的命名规范是什么？请举例说明。",
+    "ground_truth": "缓存Key命名规范采用“业务模块:功能:参数”格式，全小写，冒号分隔，例如user:info:123表示用户ID为123的用户信息。"
+  },
+  {
+    "chunk_id": 407,
+    "document_title": "互联网系统技术文档",
+    "question": "在缓存更新策略中，什么情况下适合使用“更新数据库后删除缓存”的方式？",
+    "ground_truth": "适用于数据更新频率高、一致性要求一般的场景，如商品库存更新，避免缓存与数据库数据不一致。"
+  },
+  {
+    "chunk_id": 408,
+    "document_title": "互联网系统技术文档",
+    "question": "什么是缓存预热？",
+    "ground_truth": "缓存预热是系统启动时，将热门数据提前加载到缓存中，避免用户请求时缓存穿透。"
+  },
+  {
+    "chunk_id": 408,
+    "document_title": "互联网系统技术文档",
+    "question": "如何解决缓存雪崩问题？",
+    "ground_truth": "采用不同的过期时间（如在基础过期时间上增加随机秒数），避免大量缓存同时过期；部署Redis集群，确保缓存高可用。"
+  },
+  {
+    "chunk_id": 408,
+    "document_title": "互联网系统技术文档",
+    "question": "系统高可用设计中，服务层如何避免单点故障？",
+    "ground_truth": "每个微服务部署多个实例，通过负载均衡器将请求分配到各个实例，避免单一实例故障导致服务中断。"
+  },
+  {
+    "chunk_id": 409,
+    "document_title": "互联网系统技术文档",
+    "question": "服务层高可用中，限流熔断机制具体包括哪些功能？",
+    "ground_truth": "包括限流、熔断和降级。限流设置每秒最大请求数（QPS），超过阈值的请求直接拒绝或排队；熔断在服务调用失败率超过阈值时熔断服务，定期检测后解除；降级在系统压力过大时关闭非核心服务，优先保障核心服务。"
+  },
+  {
+    "chunk_id": 409,
+    "document_title": "互联网系统技术文档",
+    "question": "数据层高可用中，Redis采用了什么架构来确保缓存服务不中断？",
+    "ground_truth": "Redis采用主从加哨兵架构，主库故障时，哨兵自动选举从库为主库，确保缓存服务不中断，同时开启持久化避免数据丢失。"
+  },
+  {
+    "chunk_id": 409,
+    "document_title": "互联网系统技术文档",
+    "question": "当核心服务出现故障时，服务降级预案会采取什么策略来减少对用户的影响？",
+    "ground_truth": "采用降级策略，如返回默认数据或提示用户稍后重试，以减少对用户的影响。"
+  },
+  {
+    "chunk_id": 410,
+    "document_title": "互联网系统技术文档",
+    "question": "Redis采用了什么架构来确保缓存服务不中断？",
+    "ground_truth": "Redis采用主从加哨兵架构，主库故障时，哨兵自动选举从库为主库，确保缓存服务不中断。"
+  },
+  {
+    "chunk_id": 410,
+    "document_title": "互联网系统技术文档",
+    "question": "系统如何实现网关层的高可用？",
+    "ground_truth": "网关层通过部署多个网关实例，并使用Nginx负载均衡，避免单一网关故障导致系统入口不可用；同时网关定期检查后端微服务的健康状态，将请求路由到健康的服务实例。"
+  },
+  {
+    "chunk_id": 410,
+    "document_title": "互联网系统技术文档",
+    "question": "高并发设计中，数据库负载均衡采用了哪些具体措施？",
+    "ground_truth": "数据库负载均衡采用读写分离，主库负责写入，从库负责读取，提升并发处理能力；同时进行分库分表，降低单一数据库或表的压力。"
+  },
+  {
+    "chunk_id": 411,
+    "document_title": "互联网系统技术文档",
+    "question": "什么是数据库读写分离？它有什么作用？",
+    "ground_truth": "读写分离是一种数据库负载均衡策略，主库负责写入操作，从库负责读取操作，这样可以提升数据库的并发处理能力。"
+  },
+  {
+    "chunk_id": 411,
+    "document_title": "互联网系统技术文档",
+    "question": "系统启动时如何避免缓存穿透？",
+    "ground_truth": "系统启动时通过缓存预热，将热门数据提前加载到缓存中，避免用户请求时缓存穿透，从而提升响应速度。"
+  },
+  {
+    "chunk_id": 411,
+    "document_title": "互联网系统技术文档",
+    "question": "消息队列在异步处理中用于哪些场景？",
+    "ground_truth": "消息队列用于将非实时、非核心的业务逻辑（如短信通知、日志收集、数据统计）异步执行，减少主流程的响应时间，提升系统吞吐量。"
+  },
+  {
+    "chunk_id": 412,
+    "document_title": "互联网系统技术文档",
+    "question": "异步编程在Spring Boot中如何实现？",
+    "ground_truth": "采用Spring Boot Async、CompletableFuture实现异步编程，提升接口并发处理能力，避免阻塞式调用。"
+  },
+  {
+    "chunk_id": 412,
+    "document_title": "互联网系统技术文档",
+    "question": "代码复用有哪些具体做法？",
+    "ground_truth": "提取公共方法、工具类，减少代码冗余，提升开发效率和代码质量；避免重复计算，缓存计算结果。"
+  },
+  {
+    "chunk_id": 412,
+    "document_title": "互联网系统技术文档",
+    "question": "代码开发规范中关于注释有什么要求？",
+    "ground_truth": "每个类必须添加类注释，说明类的功能、作者、创建日期、修改记录等；每个公共方法必须添加方法注释，说明方法的功能、参数含义、返回值、异常信息等。"
+  },
+  {
+    "chunk_id": 413,
+    "document_title": "互联网系统技术文档",
+    "question": "代码注释有哪些要求？",
+    "ground_truth": "每个公共方法必须添加方法注释，说明方法的功能、参数含义、返回值、异常信息等。复杂逻辑、关键代码必须添加行注释，说明代码的作用，避免后续维护困难。"
+  },
+  {
+    "chunk_id": 413,
+    "document_title": "互联网系统技术文档",
+    "question": "变量名和常量名的命名规范分别是什么？",
+    "ground_truth": "变量名采用驼峰命名法（camelCase），首字母小写，语义清晰，避免使用单个字母，如userId、orderNo。常量名全大写，下划线分隔，语义清晰，如MAX_PAGE_SIZE、USER_STATUS_ACTIVE。"
+  },
+  {
+    "chunk_id": 413,
+    "document_title": "互联网系统技术文档",
+    "question": "如何提升代码质量？",
+    "ground_truth": "避免冗余代码，删除无用代码和注释代码；避免重复代码，提取公共方法、工具类，减少重复代码，提升开发效率。"
+  },
+  {
+    "chunk_id": 414,
+    "document_title": "互联网系统技术文档",
+    "question": "在Java开发中，如何避免硬编码？",
+    "ground_truth": "将常量、配置信息（如数据库地址、端口号、接口地址）统一配置在配置文件中，避免硬编码，便于后期维护和修改。"
+  },
+  {
+    "chunk_id": 414,
+    "document_title": "互联网系统技术文档",
+    "question": "异常处理有哪些具体要求？",
+    "ground_truth": "所有异常必须捕获并处理，避免抛出未捕获异常导致系统崩溃；异常处理需记录日志，便于问题排查；自定义异常类，统一异常返回格式。"
+  },
+  {
+    "chunk_id": 414,
+    "document_title": "互联网系统技术文档",
+    "question": "如何提升代码的可读性和维护性？",
+    "ground_truth": "删除无用代码、注释代码，避免代码冗余，提升代码可读性和维护性。"
+  },
+  {
+    "chunk_id": 415,
+    "document_title": "互联网系统技术文档",
+    "question": "这个项目结构是按什么方式组织的？",
+    "ground_truth": "按分层结构组织项目。"
+  },
+  {
+    "chunk_id": 415,
+    "document_title": "互联网系统技术文档",
+    "question": "在项目结构中，controller层的主要作用是什么？",
+    "ground_truth": "控制器，接收请求、返回响应。"
+  },
+  {
+    "chunk_id": 415,
+    "document_title": "互联网系统技术文档",
+    "question": "model目录下包含了哪些子目录？",
+    "ground_truth": "包含entity（数据库实体类）、dto（数据传输对象）、vo（视图对象，返回给前端）、enums（枚举类）。"
+  },
+  {
+    "chunk_id": 416,
+    "document_title": "互联网系统技术文档",
+    "question": "微服务启动类的命名规则是什么？",
+    "ground_truth": "每个微服务启动类命名为“模块名+Application.java”，如UserApplication.java、OrderApplication.java。"
+  },
+  {
+    "chunk_id": 416,
+    "document_title": "互联网系统技术文档",
+    "question": "Controller的接口路径应该采用什么风格？",
+    "ground_truth": "采用RESTful风格，路径全小写，下划线分隔，如/user/list（用户列表）、/order/create（创建订单），避免使用驼峰命名。"
+  },
+  {
+    "chunk_id": 416,
+    "document_title": "互联网系统技术文档",
+    "question": "在Controller中如何进行参数校验？",
+    "ground_truth": "使用JSR-380注解（如@NotNull、@NotBlank、@Pattern）对请求参数进行校验，避免在Controller中手动校验；校验失败返回统一的错误信息。"
+  },
+  {
+    "chunk_id": 417,
+    "document_title": "互联网系统技术文档",
+    "question": "在参数校验中，应该使用什么注解来避免在Controller中手动校验？",
+    "ground_truth": "使用JSR-380注解，如@NotNull、@NotBlank、@Pattern等。"
+  },
+  {
+    "chunk_id": 417,
+    "document_title": "互联网系统技术文档",
+    "question": "统一的响应格式包含哪些字段？",
+    "ground_truth": "包含状态码（code）、提示信息（message）和响应数据（data，可选）。"
+  },
+  {
+    "chunk_id": 417,
+    "document_title": "互联网系统技术文档",
+    "question": "服务层的接口和实现类分别如何命名？",
+    "ground_truth": "服务接口命名为“模块名+Service”，如UserService；实现类命名为“接口名+Impl”，如UserServiceImpl。"
+  },
+  {
+    "chunk_id": 418,
+    "document_title": "互联网系统技术文档",
+    "question": "服务实现类的命名规则是什么？",
+    "ground_truth": "服务实现类命名为“接口名+Impl”，如UserServiceImpl、OrderServiceImpl。"
+  },
+  {
+    "chunk_id": 418,
+    "document_title": "互联网系统技术文档",
+    "question": "在数据访问层中，如何避免SQL注入？",
+    "ground_truth": "使用参数绑定（#{}），避免使用字符串拼接（${}），防止SQL注入攻击。"
+  },
+  {
+    "chunk_id": 418,
+    "document_title": "互联网系统技术文档",
+    "question": "服务层如何处理复杂业务逻辑？",
+    "ground_truth": "复杂业务逻辑拆分为多个方法，提升代码可读性和可维护性。"
+  },
+  {
+    "chunk_id": 419,
+    "document_title": "互联网系统技术文档",
+    "question": "如何防止SQL注入攻击？",
+    "ground_truth": "使用参数绑定（#{}），避免使用字符串拼接（${}），防止SQL注入攻击。"
+  },
+  {
+    "chunk_id": 419,
+    "document_title": "互联网系统技术文档",
+    "question": "实体类（Entity）需要添加哪些注解？",
+    "ground_truth": "实体类需要添加@TableName、@TableId、@TableField等注解。"
+  },
+  {
+    "chunk_id": 419,
+    "document_title": "互联网系统技术文档",
+    "question": "视图对象（VO）的主要作用是什么？",
+    "ground_truth": "视图对象用于返回给前端，包含前端需要展示的字段，并可对实体类字段进行格式化，提升前端展示效果。"
+  },
+  {
+    "chunk_id": 420,
+    "document_title": "互联网系统技术文档",
+    "question": "Vue3前端开发规范中，项目结构里用于存放接口请求的文件夹叫什么？",
+    "ground_truth": "api文件夹，用于按模块划分接口请求。"
+  },
+  {
+    "chunk_id": 420,
+    "document_title": "互联网系统技术文档",
+    "question": "在Vue3编码规范中，组件命名应该采用什么命名法？",
+    "ground_truth": "采用帕斯卡命名法（PascalCase），如UserList、OrderDetail，避免使用关键字。"
+  },
+  {
+    "chunk_id": 420,
+    "document_title": "互联网系统技术文档",
+    "question": "Vue3项目结构中，状态管理使用的是哪个库？",
+    "ground_truth": "状态管理使用Pinia，存放在store文件夹中。"
+  },
+  {
+    "chunk_id": 421,
+    "document_title": "互联网系统技术文档",
+    "question": "在命名规范中，组件名应该采用哪种命名法？",
+    "ground_truth": "组件名采用帕斯卡命名法（PascalCase），如UserList、OrderDetail。"
+  },
+  {
+    "chunk_id": 421,
+    "document_title": "互联网系统技术文档",
+    "question": "模板规范中，为什么建议避免使用v-html指令？",
+    "ground_truth": "避免使用v-html是为了防止XSS攻击。"
+  },
+  {
+    "chunk_id": 421,
+    "document_title": "互联网系统技术文档",
+    "question": "样式规范中，如何避免样式污染？",
+    "ground_truth": "采用Scoped CSS可以避免样式污染。"
+  },
+  {
+    "chunk_id": 422,
+    "document_title": "互联网系统技术文档",
+    "question": "在样式规范中，如何避免样式污染？",
+    "ground_truth": "采用Scoped CSS，避免样式污染；公共样式放在assets/css目录下，全局引入。"
+  },
+  {
+    "chunk_id": 422,
+    "document_title": "互联网系统技术文档",
+    "question": "脚本规范中推荐使用哪些ES6+语法？",
+    "ground_truth": "推荐使用箭头函数、let/const、解构赋值、模板字符串等，避免使用var。"
+  },
+  {
+    "chunk_id": 422,
+    "document_title": "互联网系统技术文档",
+    "question": "接口请求时，如何处理异常情况？",
+    "ground_truth": "统一封装axios，处理请求拦截和响应拦截，如token携带、异常处理、loading提示，接口调用使用async/await，避免回调地狱；异常及时捕获并处理，提示用户友好信息，避免页面崩溃。"
+  },
+  {
+    "chunk_id": 423,
+    "document_title": "互联网系统技术文档",
+    "question": "在接口开发规范中，RESTful风格要求请求方法与业务操作如何对应？",
+    "ground_truth": "GET对应查询，POST对应创建，PUT对应更新，DELETE对应删除。"
+  },
+  {
+    "chunk_id": 423,
+    "document_title": "互联网系统技术文档",
+    "question": "异常处理规范中，对接口请求异常和页面渲染异常有什么要求？",
+    "ground_truth": "需要及时捕获并处理，提示用户友好信息，避免页面崩溃。"
+  },
+  {
+    "chunk_id": 423,
+    "document_title": "互联网系统技术文档",
+    "question": "接口设计原则中提到的‘可扩展性’具体指什么？",
+    "ground_truth": "接口设计预留扩展字段，避免后期接口变更导致前后端大量修改。"
+  },
+  {
+    "chunk_id": 424,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "公司的保密信息分为哪几个等级？",
+    "ground_truth": "绝密、机密、秘密、内部公开四级。"
+  },
+  {
+    "chunk_id": 424,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "员工可以随意将公司内部公告截图发给外部人员吗？",
+    "ground_truth": "不可以。内部公开信息虽然公司内部可查阅，但禁止对外泄露。"
+  },
+  {
+    "chunk_id": 424,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "最小权限原则是什么意思？",
+    "ground_truth": "仅授予必要人员必要权限，按需开放。"
+  },
+  {
+    "chunk_id": 425,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "什么是涉密信息？",
+    "ground_truth": "涉密信息包括商业机密（如源代码、产品设计、架构图纸）、用户信息（如账号、密码、手机号、身份证号、聊天记录）、员工信息（如简历、薪资、绩效、身份证号、家庭住址）以及其他涉密信息（如会议纪要、内部邮件、未公开通知、涉密系统、涉密设备、涉密载体）。"
+  },
+  {
+    "chunk_id": 425,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "禁止行为中，哪些行为涉及传输涉密信息？",
+    "ground_truth": "禁止私自拷贝、存储、传输、泄露、分享、传播涉密信息；禁止将涉密信息带出办公区、带回家、带出差、外发第三方；禁止使用个人微信、QQ、邮箱、云盘传输涉密信息。"
+  },
+  {
+    "chunk_id": 425,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "对于电脑和手机等涉密载体，有哪些具体管理要求？",
+    "ground_truth": "电脑需设置强密码（大小写+数字+符号，≥12位）、开启双重认证、定期杀毒、加密涉密文件夹、禁止共享密码。手机需工作手机专用、设置密码、禁止安装非官方应用、禁止root/越狱、禁止连接公共Wi-Fi。"
+  },
+  {
+    "chunk_id": 426,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "公司对Wi-Fi、U盘/硬盘和云文档有哪些保密要求？",
+    "ground_truth": "Wi-Fi需使用涉密专用；U盘/硬盘需加密、标注密级、登记领用、禁止私用、离职归还；云文档需使用公司指定云盘、设置权限、禁止外部分享、定期备份。"
+  },
+  {
+    "chunk_id": 426,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "涉密纸质文件在保管和销毁时有哪些规定？",
+    "ground_truth": "涉密纸质文件需标注密级、专人保管、上锁存放、登记借阅，禁止私自复印、扫描、外传。销毁时需用碎纸机，禁止随意丢弃或变卖。"
+  },
+  {
+    "chunk_id": 426,
+    "document_title": "互联网公司信息安全与保密制度",
+    "question": "员工离职时需要完成哪些保密相关的交接和承诺？",
+    "ground_truth": "离职时需归还所有涉密载体（电脑、手机、U盘、硬盘、纸质文件、钥匙、门禁卡），删除所有公司数据（本地、云盘、邮箱、聊天记录、备份），并签署《离职保密承诺书》。离职后需终身保密，违反义务可能面临法律责任、赔偿损失及违约金（核心岗位年薪2-5倍，一般岗位10-50万元）。"
+  },
+  {
+    "chunk_id": 427,
+    "document_title": "互联网公司人力资源管理制度",
+    "question": "公司招聘时有哪些禁止歧视的规定？",
+    "ground_truth": "禁止歧视性别、年龄、民族、宗教、地域、婚姻状况和生育状况。"
+  },
+  {
+    "chunk_id": 427,
+    "document_title": "互联网公司人力资源管理制度",
+    "question": "试用期的时长是如何根据劳动合同期限确定的？",
+    "ground_truth": "劳动合同期限3个月到1年，试用期不超过1个月；1年到3年，试用期不超过2个月；3年以上或无固定期限，试用期不超过6个月。"
+  },
+  {
+    "chunk_id": 427,
+    "document_title": "互联网公司人力资源管理制度",
+    "question": "转正考核的评分标准是什么？",
+    "ground_truth": "转正考核包括价值观占30%和工作业绩占70%。"
+  },
+  {
+    "chunk_id": 428,
+    "document_title": "互联网公司人力资源管理制度",
+    "question": "转正考核中，价值观和工作业绩的占比分别是多少？",
+    "ground_truth": "价值观占比30%，工作业绩占比70%。"
+  },
+  {
+    "chunk_id": 428,
+    "document_title": "互联网公司人力资源管理制度",
+    "question": "公司的薪酬结构包括哪些部分？",
+    "ground_truth": "包括基本工资（占比50%-70%）、绩效工资（占比20%-40%）、奖金（年终奖、项目奖、季度奖、专项奖）、补贴（餐补、交通补、通讯补、住房补、加班补）以及股票/期权（授予核心员工和骨干员工）。"
+  },
+  {
+    "chunk_id": 428,
+    "document_title": "互联网公司人力资源管理制度",
+    "question": "绩效考核有哪些周期和方法？",
+    "ground_truth": "考核周期包括季度考核（每季度末）和年度考核（每年12月）。考核方法包括OKR（目标与关键成果）、KPI（关键绩效指标）和价值观考核（一票否决制）。"
+  },
+  {
+    "chunk_id": 431,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "阿里巴巴的使命和愿景分别是什么？",
+    "ground_truth": "阿里巴巴的使命是“让天下没有难做的生意”，愿景是“活102年”。"
+  },
+  {
+    "chunk_id": 431,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "阿里巴巴的“六脉神剑”价值观中，关于客户和员工的核心要求是什么？",
+    "ground_truth": "客户第一要求把客户利益放在首位，倾听需求、解决问题、创造价值；员工第二强调尊重、信任、赋能员工，与员工共同成长。"
+  },
+  {
+    "chunk_id": 431,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "阿里巴巴集团旗下包括哪些主要业务？",
+    "ground_truth": "阿里巴巴集团业务涵盖淘宝、天猫、阿里云、菜鸟、支付宝（关联）、饿了么、优酷、盒马等。"
+  },
+  {
+    "chunk_id": 432,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "价值观考核中，哪些项是20分的高分值？",
+    "ground_truth": "客户第一和诚信都是20分的高分值项。"
+  },
+  {
+    "chunk_id": 432,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "在商业行为准则中，关于利益冲突有哪些具体禁止行为？",
+    "ground_truth": "严禁兼职竞品、投资竞品、为竞品提供服务、挖角竞品核心员工。"
+  },
+  {
+    "chunk_id": 432,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "价值观考核中‘拥抱变化’包含哪些具体评分点？",
+    "ground_truth": "包含接受调整不抱怨（5分）、主动学习新技能（5分）、创新改进工作（5分）。"
+  },
+  {
+    "chunk_id": 433,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "员工需要申报哪些利益冲突？",
+    "ground_truth": "员工必须申报以下利益冲突：本人或亲属在客户、供应商、合作伙伴、竞品处任职或持股；本人或亲属与公司有业务往来、合作关系、经济利益；本人兼职、对外投资、创业（非竞品需审批）；亲属在同一部门或存在上下级、管理监督关系。"
+  },
+  {
+    "chunk_id": 433,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "保密义务的保密范围和禁止行为是什么？",
+    "ground_truth": "保密范围包括商业秘密、技术秘密、客户信息、员工信息、财务数据、战略规划、产品方案、未公开数据、会议纪要、合同文件。禁止行为包括拷贝、存储、传输、泄露、分享、传播涉密信息，包括离职后。"
+  },
+  {
+    "chunk_id": 433,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "关于公平竞争和知识产权，公司有哪些规定？",
+    "ground_truth": "公平竞争方面，员工不得恶意攻击竞品、虚假宣传、诋毁对手、窃取竞品信息、恶意降价垄断。知识产权方面，员工需尊重他人知识产权，不盗版、不侵权、不抄袭；公司知识产权（专利、商标、著作权、技术成果）归公司所有，员工不得私自使用或转让。"
+  },
+  {
+    "chunk_id": 434,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "公司招聘时有哪些用工原则？",
+    "ground_truth": "公平竞争、择优录用、任人唯贤、回避亲属。"
+  },
+  {
+    "chunk_id": 434,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "硕士及以上学历的试用期是多久？试用期工资如何计算？",
+    "ground_truth": "试用期为6个月，试用期工资为正式工资的80%。"
+  },
+  {
+    "chunk_id": 434,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "如果员工迟到超过30分钟，会如何处理？",
+    "ground_truth": "按旷工半天处理，扣半天工资加绩效。"
+  },
+  {
+    "chunk_id": 435,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "公司带薪年假的天数是如何根据工龄计算的？",
+    "ground_truth": "入职满1年5天、满3年7天、满5年10天、满10年15天，可分次休，当年休完，逾期作废。"
+  },
+  {
+    "chunk_id": 435,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "如果员工请病假超过3天，会怎么处理？",
+    "ground_truth": "病假月度≤3天带薪（基本工资80%），超3天按事假处理，事假无薪。"
+  },
+  {
+    "chunk_id": 435,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "绩效考核中，如果连续两次被评为D等级会有什么后果？",
+    "ground_truth": "连续2个D等级会导致降级或辞退。"
+  },
+  {
+    "chunk_id": 436,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "员工主动离职需要提前多久提交申请？",
+    "ground_truth": "正式员工需提前30天书面申请，试用期员工提前3天。"
+  },
+  {
+    "chunk_id": 436,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "公司对核心岗位离职员工的竞业限制有哪些规定？",
+    "ground_truth": "核心岗位（技术、产品、高管）离职后2年内不得入职竞品，公司按月支付竞业补偿金（月工资30%），违反者需赔偿违约金（年薪2倍）。"
+  },
+  {
+    "chunk_id": 436,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "差旅报销中一线城市的住宿标准是多少？",
+    "ground_truth": "一线城市住宿标准为不超过800元/晚。"
+  },
+  {
+    "chunk_id": 437,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "公司对迟到早退这类违纪行为会怎么处理？",
+    "ground_truth": "迟到早退属于一级（轻微）违纪，会给予警告和口头教育。"
+  },
+  {
+    "chunk_id": 437,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "如果发现同事有收受贿赂的行为，可以通过什么渠道举报？",
+    "ground_truth": "可以通过廉洁举报邮箱lianjie@alibaba.com进行举报，实名举报必查，匿名举报视线索调查。"
+  },
+  {
+    "chunk_id": 437,
+    "document_title": "阿里巴巴《阿里守则》完整版",
+    "question": "虚报费用属于哪一级违纪？会有什么处罚？",
+    "ground_truth": "虚报费用属于二级（一般）违纪，会记过并扣绩效10%–30%。"
+  },
+  {
+    "chunk_id": 438,
+    "document_title": "字节跳动员工手册",
+    "question": "字节跳动的使命和愿景分别是什么？",
+    "ground_truth": "使命是激发创造，丰富生活；愿景是成为全球最有创造力的科技公司。"
+  },
+  {
+    "chunk_id": 438,
+    "document_title": "字节跳动员工手册",
+    "question": "字节跳动的弹性工时制度中，核心在岗时段是什么？如果迟到超过30分钟会怎样？",
+    "ground_truth": "核心在岗时段是10:00–18:00。迟到超过30分钟视为旷工。"
+  },
+  {
+    "chunk_id": 438,
+    "document_title": "字节跳动员工手册",
+    "question": "字节跳动员工手册中，关于办公纪律有哪些禁止行为？",
+    "ground_truth": "禁止上班刷短视频、玩游戏、闲聊、炒股；禁止办公区吸烟、酗酒、大声喧哗；严禁泄露用户数据、产品方案、技术代码。"
+  },
+  {
+    "chunk_id": 439,
+    "document_title": "字节跳动员工手册",
+    "question": "公司对员工在办公区的行为有哪些禁止规定？",
+    "ground_truth": "禁止上班刷短视频、玩游戏、闲聊、炒股；禁止办公区吸烟、酗酒、大声喧哗。"
+  },
+  {
+    "chunk_id": 439,
+    "document_title": "字节跳动员工手册",
+    "question": "员工的薪酬由哪些部分组成？",
+    "ground_truth": "薪酬由基本工资、绩效、年终奖和股票期权组成。"
+  },
+  {
+    "chunk_id": 439,
+    "document_title": "字节跳动员工手册",
+    "question": "核心岗位员工离职后，竞业限制的具体要求是什么？",
+    "ground_truth": "核心岗位员工离职后2年内不得入职竞品公司，公司支付补偿金为月工资的30%。"
   }
 ]

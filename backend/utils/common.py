@@ -1,5 +1,4 @@
-from typing import Any, Dict, Optional
-from datetime import datetime
+from typing import Any, Dict
 
 
 class ApiResponse:
@@ -18,11 +17,3 @@ class ApiResponse:
             "message": message,
             "data": data
         }
-
-
-def get_current_time() -> datetime:
-    return datetime.now()
-
-
-def format_time(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%d %H:%M:%S")

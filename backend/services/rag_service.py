@@ -5,13 +5,12 @@ RAG 检索与问答服务模块
 """
 import asyncio
 import os
-import logging
 import time
-from typing import List, Dict, Any, Tuple, AsyncGenerator, Optional
+import hashlib
+from typing import List, Dict, Any, AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import joinedload
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from rank_bm25 import BM25Okapi
 
@@ -29,6 +28,7 @@ from utils.rerank import rerank_documents
 HYBRID_SEARCH_TOP_K = 10
 RERANK_TOP_K = 3
 NEIGHBOR_COUNT = 1
+HYBRID_WEIGHT_VECTOR = 0.7  # 混合检索权重（Vector : BM25）
 
 # LLM 生成参数
 LLM_TEMPERATURE = 0.3
@@ -132,13 +132,8 @@ async def summarize_history(cut_messages: List[Dict[str, str]]) -> str:
 
 概括："""
     try:
-        llm = ChatOpenAI(
-            model=settings.llm_rewrite_model or "deepseek-chat",
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            temperature=0.1,
-            max_tokens=256,
-        )
+        from core.llm_factory import create_llm
+        llm = create_llm(temperature=0.1, max_tokens=256)
         return (await llm.ainvoke(prompt)).content.strip()
     except Exception as e:
         logger.warning(f"历史摘要生成失败: {e}")
@@ -273,15 +268,15 @@ async def hybrid_search(query: str, tenant_id: int, db: AsyncSession, top_k: int
 
     for rank, r in enumerate(vector_results, 1):
         key = (r.get("tenant_id", tenant_id), r["document_id"], r["chunk_index"])
-        rrf_scores[key] = {**r, "source": "vector", "rrf_score": 1 / (RRF_K + rank)}
+        rrf_scores[key] = {**r, "source": "vector", "rrf_score": HYBRID_WEIGHT_VECTOR / (RRF_K + rank)}
 
     for rank, r in enumerate(bm25_results, 1):
         key = (r.get("tenant_id", tenant_id), r["document_id"], r["chunk_index"])
         if key in rrf_scores:
-            rrf_scores[key]["rrf_score"] += 1 / (RRF_K + rank)
+            rrf_scores[key]["rrf_score"] += (1 - HYBRID_WEIGHT_VECTOR) / (RRF_K + rank)
             rrf_scores[key]["source"] = "hybrid"
         else:
-            rrf_scores[key] = {**r, "source": "bm25", "rrf_score": 1 / (RRF_K + rank)}
+            rrf_scores[key] = {**r, "source": "bm25", "rrf_score": (1 - HYBRID_WEIGHT_VECTOR) / (RRF_K + rank)}
 
     sorted_results = sorted(rrf_scores.values(), key=lambda x: x["rrf_score"], reverse=True)
     result = sorted_results[:top_k]
@@ -431,14 +426,8 @@ async def generate_answer(
 """
 
     try:
-        llm = ChatOpenAI(
-            model=settings.llm_rewrite_model or "deepseek-chat",
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            temperature=LLM_TEMPERATURE,
-            max_tokens=LLM_MAX_TOKENS,
-            timeout=LLM_TIMEOUT
-        )
+        from core.llm_factory import create_llm
+        llm = create_llm(temperature=LLM_TEMPERATURE, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT)
         messages = [
             SystemMessage(content="你是专业、格式严格整齐的企业知识库助手。严格基于参考资料回答，保持内容完整性，不过度精简，不编造内容。"),
             HumanMessage(content=prompt)
@@ -581,7 +570,16 @@ async def chat_with_rag(
 
     # ===================== 邻居扩展 =====================
     search_results = await _expand_neighbors(search_results, db)
-    search_results = search_results[:15]
+
+    # 按文本内容去重（兜底：防止 DB/Cache 脏数据导致同 chunk 重复）
+    seen_texts = set()
+    deduped = []
+    for r in search_results:
+        sig = hashlib.md5(r["text"].encode()).hexdigest()
+        if sig not in seen_texts:
+            seen_texts.add(sig)
+            deduped.append(r)
+    search_results = deduped[:15]
 
     if not search_results:
         logger.warning("chat_with_rag: 未找到相关文档")

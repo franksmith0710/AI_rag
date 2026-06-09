@@ -6,24 +6,27 @@ Chroma 向量数据库连接模块
 import os
 import logging
 import onnxruntime
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 import chromadb
 from chromadb.config import Settings
 from transformers import AutoTokenizer
 from .config import get_settings
-from .logging_config import setup_logging
 import hashlib
+import threading
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 _chroma_clients: Dict[int, chromadb.PersistentClient] = {}
+_client_lock = threading.Lock()
+_embedding_lock = threading.Lock()
 
 
 class LocalEmbedding:
     """本地 Embedding 模型 (BGE-M3 ONNX) — CLS + L2 normalize 已在图内"""
     _session = None
     _tokenizer = None
+    _lock = threading.Lock()
 
     def __init__(self):
         self._load_model()
@@ -54,10 +57,11 @@ class LocalEmbedding:
                     truncation=True,
                     padding=True
                 )
-                outputs = LocalEmbedding._session.run(None, {
-                    'input_ids': inputs['input_ids'].astype('int64'),
-                    'attention_mask': inputs['attention_mask'].astype('int64'),
-                })[0]
+                with LocalEmbedding._lock:
+                    outputs = LocalEmbedding._session.run(None, {
+                        'input_ids': inputs['input_ids'].astype('int64'),
+                        'attention_mask': inputs['attention_mask'].astype('int64'),
+                    })[0]
                 all_embeddings.extend(outputs.tolist())
             logger.info(f"embed_documents: 成功, 向量数量={len(all_embeddings)}, 向量长度={len(all_embeddings[0]) if all_embeddings else 0}")
             return all_embeddings
@@ -69,10 +73,11 @@ class LocalEmbedding:
         logger.info(f"embed_query: 文本长度={len(text)}")
         try:
             inputs = LocalEmbedding._tokenizer(text, return_tensors='np', max_length=512, truncation=True, padding=True)
-            outputs = LocalEmbedding._session.run(None, {
-                'input_ids': inputs['input_ids'].astype('int64'),
-                'attention_mask': inputs['attention_mask'].astype('int64'),
-            })[0]
+            with LocalEmbedding._lock:
+                outputs = LocalEmbedding._session.run(None, {
+                    'input_ids': inputs['input_ids'].astype('int64'),
+                    'attention_mask': inputs['attention_mask'].astype('int64'),
+                })[0]
             result = outputs.squeeze().tolist()
             logger.info(f"embed_query: 成功, 向量长度={len(result)}")
             return result
@@ -85,16 +90,20 @@ _embedding_model = None
 
 
 def get_embedding_model() -> LocalEmbedding:
-    """获取 Embedding 模型单例"""
+    """获取 Embedding 模型单例（线程安全）"""
     global _embedding_model
     if _embedding_model is None:
-        _embedding_model = LocalEmbedding()
+        with _embedding_lock:
+            if _embedding_model is None:
+                _embedding_model = LocalEmbedding()
     return _embedding_model
 
 
 def _get_client(tenant_id: int) -> chromadb.PersistentClient:
     """获取租户的 Chroma 客户端（ChromaDB 1.x 兼容）"""
-    if tenant_id not in _chroma_clients:
+    with _client_lock:
+        if tenant_id in _chroma_clients:
+            return _chroma_clients[tenant_id]
         persist_dir = os.path.join(settings.chroma_persist_dir, f"tenant_{tenant_id}_documents")
         os.makedirs(persist_dir, exist_ok=True)
 
@@ -104,11 +113,11 @@ def _get_client(tenant_id: int) -> chromadb.PersistentClient:
         )
         try:
             admin.create_tenant(name="default_tenant")
-        except Exception:
+        except ValueError:
             pass
         try:
             admin.create_database(name="default_database", tenant="default_tenant")
-        except Exception:
+        except ValueError:
             pass
 
         _chroma_clients[tenant_id] = chromadb.PersistentClient(

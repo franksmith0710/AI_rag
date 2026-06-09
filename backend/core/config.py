@@ -2,7 +2,6 @@
 配置管理模块
 负责加载和管理所有配置项，支持从 .env 文件读取环境变量
 """
-import os
 from pathlib import Path
 from pydantic_settings import BaseSettings
 from functools import lru_cache
@@ -37,21 +36,8 @@ class Settings(BaseSettings):
     redis_password: str = ""
 
     # ==================== 向量库配置 ====================
-    vector_store: str = "chroma"  # 向量库模式: chroma(开发) / milvus(生产)
-    chroma_persist_dir: str = "./vector_store/chroma"  # Chroma 数据持久化目录
-
-    # Milvus 配置 (生产环境使用)
-    milvus_host: str = "localhost"
-    milvus_port: int = 19530
-
-    # ==================== 文件存储配置 ====================
-    storage_mode: str = "local"  # 文件存储模式: local(开发) / minio(生产)
-
-    # MinIO 配置 (生产环境使用)
-    minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = "minioadmin"
-    minio_bucket: str = "rag-documents"
+    vector_store: str = "chroma"
+    chroma_persist_dir: str = "./vector_store/chroma"
 
     
 
@@ -70,8 +56,6 @@ class Settings(BaseSettings):
     langchain_api_key: str = ""  # 从 .env 读取（LANGCHAIN_API_KEY）
     langchain_endpoint: str = ""  # 从 .env 读取（LANGCHAIN_ENDPOINT）
     langchain_project: str = "AI_rag"  # 从 .env 读取（LANGCHAIN_PROJECT）
-    langchain_tracing_v2: bool = True  # 从 .env 读取（LANGCHAIN_TRACING_V2）
-
     # ==================== RAG 配置 ====================
     reranker_model_path: str = "/models/BAAI/bge-reranker-v2-m3"
     reranker_onnx_path: str = "/models/BAAI/bge-reranker-v2-m3-onnx/bge-reranker-v2-m3.onnx"
@@ -81,7 +65,6 @@ class Settings(BaseSettings):
     llm_rewrite_model: str = "deepseek-chat"
     query_variant_enabled: bool = True
     query_variant_count: int = 3
-    redis_enabled: bool = True
 
     @property
     def postgres_url(self) -> str:

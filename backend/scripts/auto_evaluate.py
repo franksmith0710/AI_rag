@@ -1,6 +1,6 @@
 """
 一键自动评估脚本
-流程：生成测试数据 → 运行 RAGAS 评估 → 输出报告
+流程：生成测试数据 → 运行评估 → 输出报告
 """
 
 import asyncio
@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 async def main():
     print("=" * 60)
-    print("  RAGAS 一键自动评估")
+    print("  自动评估 (检索质量 + QA语义 + 答案接地)")
     print("=" * 60)
 
     # Step 1: 生成测试数据
@@ -21,7 +21,7 @@ async def main():
     await generate()
 
     # Step 2: 运行评估
-    print("\n[2/2] 运行 RAGAS 评估...")
+    print("\n[2/2] 运行评估...")
     from scripts.evaluate import main as run_eval
     await run_eval()
 

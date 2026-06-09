@@ -1,0 +1,1210 @@
+{
+  "total": 150,
+  "skipped": 0,
+  "avg_retrieval_relevance_max": 0.6407,
+  "avg_retrieval_relevance_avg": 0.5935,
+  "avg_qa_semantic_similarity": 0.7063,
+  "avg_answer_grounding": 0.1532,
+  "results": [
+    {
+      "question": "这个项目的主要功能是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5665,
+      "retrieval_relevance_avg": 0.4935,
+      "qa_semantic_similarity": 0.4599,
+      "answer_grounding": 0.1045
+    },
+    {
+      "question": "项目使用了哪些技术栈？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.567,
+      "retrieval_relevance_avg": 0.5402,
+      "qa_semantic_similarity": 0.644,
+      "answer_grounding": 0.1316
+    },
+    {
+      "question": "项目如何处理观点冲突的情况？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5478,
+      "retrieval_relevance_avg": 0.5319,
+      "qa_semantic_similarity": 0.6152,
+      "answer_grounding": 0.0323
+    },
+    {
+      "question": "这个系统如何处理用户提问中的指代不清或复杂查询？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5745,
+      "retrieval_relevance_avg": 0.5629,
+      "qa_semantic_similarity": 0.7296,
+      "answer_grounding": 0.0552
+    },
+    {
+      "question": "在RAG系统中，如何确保检索结果的准确性？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.54,
+      "retrieval_relevance_avg": 0.5173,
+      "qa_semantic_similarity": 0.606,
+      "answer_grounding": 0.0587
+    },
+    {
+      "question": "系统支持哪些文档格式的上传？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6908,
+      "retrieval_relevance_avg": 0.6277,
+      "qa_semantic_similarity": 0.8641,
+      "answer_grounding": 0.057
+    },
+    {
+      "question": "这个系统是如何提高检索匹配精度的？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5274,
+      "retrieval_relevance_avg": 0.4776,
+      "qa_semantic_similarity": 0.7099,
+      "answer_grounding": 0.0611
+    },
+    {
+      "question": "多租户数据隔离架构有什么特点？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5479,
+      "retrieval_relevance_avg": 0.5353,
+      "qa_semantic_similarity": 0.7854,
+      "answer_grounding": 0.0469
+    },
+    {
+      "question": "智能客服 Agent 系统如何处理多轮对话中的指代消解问题？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5883,
+      "retrieval_relevance_avg": 0.4984,
+      "qa_semantic_similarity": 0.6778,
+      "answer_grounding": 0.0801
+    },
+    {
+      "question": "这个RAG知识库整合了哪些检索技术？覆盖了哪些知识域？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5679,
+      "retrieval_relevance_avg": 0.4891,
+      "qa_semantic_similarity": 0.5695,
+      "answer_grounding": 0.0484
+    },
+    {
+      "question": "修腾豪使用了哪些工具来开发后端接口和搭建交互界面？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6482,
+      "retrieval_relevance_avg": 0.5237,
+      "qa_semantic_similarity": 0.5514,
+      "answer_grounding": 0.0547
+    },
+    {
+      "question": "修腾豪的意向岗位是什么？他的出生日期是哪一年？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6495,
+      "retrieval_relevance_avg": 0.5373,
+      "qa_semantic_similarity": 0.4263,
+      "answer_grounding": 0.0671
+    },
+    {
+      "question": "vLLM、SGLang、TensorRT 这些技术主要用来做什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5279,
+      "retrieval_relevance_avg": 0.4387,
+      "qa_semantic_similarity": 0.5156,
+      "answer_grounding": 0.0346
+    },
+    {
+      "question": "文本中提到了哪些后端和前端开发技术？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5951,
+      "retrieval_relevance_avg": 0.5766,
+      "qa_semantic_similarity": 0.6863,
+      "answer_grounding": 0.0525
+    },
+    {
+      "question": "在工程化部署方面，需要掌握哪些工具？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5739,
+      "retrieval_relevance_avg": 0.5545,
+      "qa_semantic_similarity": 0.7373,
+      "answer_grounding": 0.0645
+    },
+    {
+      "question": "本文档支持哪四种格式？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6606,
+      "retrieval_relevance_avg": 0.5768,
+      "qa_semantic_similarity": 0.8578,
+      "answer_grounding": 0.0638
+    },
+    {
+      "question": "TXT格式适合什么场景？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5863,
+      "retrieval_relevance_avg": 0.5481,
+      "qa_semantic_similarity": 0.7373,
+      "answer_grounding": 0.0612
+    },
+    {
+      "question": "本文档的核心内容是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5319,
+      "retrieval_relevance_avg": 0.5212,
+      "qa_semantic_similarity": 0.619,
+      "answer_grounding": 0.1246
+    },
+    {
+      "question": "这个文档适用于哪些类型的互联网系统？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.694,
+      "retrieval_relevance_avg": 0.6785,
+      "qa_semantic_similarity": 0.7291,
+      "answer_grounding": 0.4706
+    },
+    {
+      "question": "文档覆盖了哪些技术人员的工作范围？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6493,
+      "retrieval_relevance_avg": 0.5847,
+      "qa_semantic_similarity": 0.7301,
+      "answer_grounding": 0.3784
+    },
+    {
+      "question": "文档的适用范围包括系统的哪些生命周期阶段？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6437,
+      "retrieval_relevance_avg": 0.5962,
+      "qa_semantic_similarity": 0.6229,
+      "answer_grounding": 0.2683
+    },
+    {
+      "question": "什么是分布式系统？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7134,
+      "retrieval_relevance_avg": 0.5981,
+      "qa_semantic_similarity": 0.7963,
+      "answer_grounding": 0.2006
+    },
+    {
+      "question": "高可用系统的核心指标有哪些？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6229,
+      "retrieval_relevance_avg": 0.6193,
+      "qa_semantic_similarity": 0.7918,
+      "answer_grounding": 0.1054
+    },
+    {
+      "question": "负载均衡的主要作用是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5015,
+      "retrieval_relevance_avg": 0.4871,
+      "qa_semantic_similarity": 0.7631,
+      "answer_grounding": 0.132
+    },
+    {
+      "question": "什么是CI/CD？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5515,
+      "retrieval_relevance_avg": 0.5074,
+      "qa_semantic_similarity": 0.6779,
+      "answer_grounding": 0.3711
+    },
+    {
+      "question": "监控告警系统如何工作？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5769,
+      "retrieval_relevance_avg": 0.5302,
+      "qa_semantic_similarity": 0.7484,
+      "answer_grounding": 0.5085
+    },
+    {
+      "question": "容灾备份的核心指标有哪些？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5978,
+      "retrieval_relevance_avg": 0.5839,
+      "qa_semantic_similarity": 0.7904,
+      "answer_grounding": 0.1962
+    },
+    {
+      "question": "这个文档的版本历史中，哪个版本新增了安全规范和CI/CD自动化流程？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5932,
+      "retrieval_relevance_avg": 0.5452,
+      "qa_semantic_similarity": 0.7253,
+      "answer_grounding": 0.1584
+    },
+    {
+      "question": "系统的整体架构分为哪几层？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.664,
+      "retrieval_relevance_avg": 0.641,
+      "qa_semantic_similarity": 0.7797,
+      "answer_grounding": 0.1188
+    },
+    {
+      "question": "应用层的主要职责是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6765,
+      "retrieval_relevance_avg": 0.591,
+      "qa_semantic_similarity": 0.676,
+      "answer_grounding": 0.1735
+    },
+    {
+      "question": "微服务架构中，网关层的主要作用是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7213,
+      "retrieval_relevance_avg": 0.6511,
+      "qa_semantic_similarity": 0.7646,
+      "answer_grounding": 0.1721
+    },
+    {
+      "question": "微服务拆分遵循哪些原则？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.694,
+      "retrieval_relevance_avg": 0.6081,
+      "qa_semantic_similarity": 0.7828,
+      "answer_grounding": 0.2116
+    },
+    {
+      "question": "数据层包含哪些组件？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6159,
+      "retrieval_relevance_avg": 0.6075,
+      "qa_semantic_similarity": 0.7577,
+      "answer_grounding": 0.1563
+    },
+    {
+      "question": "微服务之间如何实现低耦合？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7049,
+      "retrieval_relevance_avg": 0.6523,
+      "qa_semantic_similarity": 0.71,
+      "answer_grounding": 0.3507
+    },
+    {
+      "question": "微服务的可扩展性体现在哪里？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6209,
+      "retrieval_relevance_avg": 0.5788,
+      "qa_semantic_similarity": 0.7232,
+      "answer_grounding": 0.2879
+    },
+    {
+      "question": "系统核心微服务模块是如何协同工作的？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7248,
+      "retrieval_relevance_avg": 0.6852,
+      "qa_semantic_similarity": 0.7183,
+      "answer_grounding": 0.1959
+    },
+    {
+      "question": "用户服务（User Service）的核心功能包括哪些？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6562,
+      "retrieval_relevance_avg": 0.6071,
+      "qa_semantic_similarity": 0.6076,
+      "answer_grounding": 0.1003
+    },
+    {
+      "question": "订单服务（Order Service）依赖哪些其他微服务？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.636,
+      "retrieval_relevance_avg": 0.5774,
+      "qa_semantic_similarity": 0.5937,
+      "answer_grounding": 0.0741
+    },
+    {
+      "question": "支付服务（Payment Service）使用了哪些技术栈？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5574,
+      "retrieval_relevance_avg": 0.5466,
+      "qa_semantic_similarity": 0.415,
+      "answer_grounding": 0.1382
+    },
+    {
+      "question": "短信服务主要支持哪些类型的短信发送？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7005,
+      "retrieval_relevance_avg": 0.6255,
+      "qa_semantic_similarity": 0.7668,
+      "answer_grounding": 0.0739
+    },
+    {
+      "question": "日志服务使用哪些技术栈来实现系统日志的收集和分析？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5764,
+      "retrieval_relevance_avg": 0.5604,
+      "qa_semantic_similarity": 0.7323,
+      "answer_grounding": 0.2116
+    },
+    {
+      "question": "网关服务在微服务架构中承担哪些核心功能？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6882,
+      "retrieval_relevance_avg": 0.6257,
+      "qa_semantic_similarity": 0.7877,
+      "answer_grounding": 0.1067
+    },
+    {
+      "question": "Nacos如何检测微服务的健康状态？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7367,
+      "retrieval_relevance_avg": 0.6063,
+      "qa_semantic_similarity": 0.8154,
+      "answer_grounding": 0.2232
+    },
+    {
+      "question": "微服务之间如何实现服务发现？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.707,
+      "retrieval_relevance_avg": 0.6554,
+      "qa_semantic_similarity": 0.6845,
+      "answer_grounding": 0.1821
+    },
+    {
+      "question": "同步通信适用于哪些业务场景？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5894,
+      "retrieval_relevance_avg": 0.5443,
+      "qa_semantic_similarity": 0.8324,
+      "answer_grounding": 0.109
+    },
+    {
+      "question": "HTTP通信和RPC通信分别适用于什么场景？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7486,
+      "retrieval_relevance_avg": 0.6089,
+      "qa_semantic_similarity": 0.8574,
+      "answer_grounding": 0.2058
+    },
+    {
+      "question": "消息队列在异步通信中有什么核心作用？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6189,
+      "retrieval_relevance_avg": 0.5593,
+      "qa_semantic_similarity": 0.7982,
+      "answer_grounding": 0.128
+    },
+    {
+      "question": "MySQL数据库采用了什么部署方式来提升并发处理能力？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6283,
+      "retrieval_relevance_avg": 0.6199,
+      "qa_semantic_similarity": 0.681,
+      "answer_grounding": 0.1715
+    },
+    {
+      "question": "数据库读写分离是如何实现的？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.607,
+      "retrieval_relevance_avg": 0.5867,
+      "qa_semantic_similarity": 0.6957,
+      "answer_grounding": 0.1325
+    },
+    {
+      "question": "当数据量超过1000万条时，数据库会采取什么策略？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6047,
+      "retrieval_relevance_avg": 0.5598,
+      "qa_semantic_similarity": 0.5346,
+      "answer_grounding": 0.1626
+    },
+    {
+      "question": "Redis如何保证缓存高可用？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7639,
+      "retrieval_relevance_avg": 0.7447,
+      "qa_semantic_similarity": 0.6869,
+      "answer_grounding": 0.0775
+    },
+    {
+      "question": "消息队列RabbitMQ有哪些核心功能来确保消息可靠传输？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6206,
+      "retrieval_relevance_avg": 0.5667,
+      "qa_semantic_similarity": 0.7741,
+      "answer_grounding": 0.1085
+    },
+    {
+      "question": "MinIO对象存储兼容什么协议？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6262,
+      "retrieval_relevance_avg": 0.5528,
+      "qa_semantic_similarity": 0.8192,
+      "answer_grounding": 0.0385
+    },
+    {
+      "question": "数据库设计中，索引的命名规范是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6447,
+      "retrieval_relevance_avg": 0.6168,
+      "qa_semantic_similarity": 0.6266,
+      "answer_grounding": 0.1023
+    },
+    {
+      "question": "在数据库字段设计中，为什么建议避免使用UUID作为主键？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6738,
+      "retrieval_relevance_avg": 0.5959,
+      "qa_semantic_similarity": 0.6213,
+      "answer_grounding": 0.0583
+    },
+    {
+      "question": "索引设计中，联合索引应遵循什么原则？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5702,
+      "retrieval_relevance_avg": 0.5253,
+      "qa_semantic_similarity": 0.7685,
+      "answer_grounding": 0.1939
+    },
+    {
+      "question": "在事务设计中，哪些核心业务必须使用事务？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6778,
+      "retrieval_relevance_avg": 0.6431,
+      "qa_semantic_similarity": 0.7978,
+      "answer_grounding": 0.0985
+    },
+    {
+      "question": "事务设计中，核心业务如订单创建、支付、库存扣减必须使用什么机制来确保数据一致性？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7169,
+      "retrieval_relevance_avg": 0.663,
+      "qa_semantic_similarity": 0.626,
+      "answer_grounding": 0.1096
+    },
+    {
+      "question": "缓存Key的命名规范是什么？请举例说明。",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5568,
+      "retrieval_relevance_avg": 0.552,
+      "qa_semantic_similarity": 0.7777,
+      "answer_grounding": 0.1792
+    },
+    {
+      "question": "在缓存更新策略中，什么情况下适合使用“更新数据库后删除缓存”的方式？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6127,
+      "retrieval_relevance_avg": 0.6049,
+      "qa_semantic_similarity": 0.7007,
+      "answer_grounding": 0.1263
+    },
+    {
+      "question": "什么是缓存预热？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5905,
+      "retrieval_relevance_avg": 0.542,
+      "qa_semantic_similarity": 0.8288,
+      "answer_grounding": 0.1152
+    },
+    {
+      "question": "如何解决缓存雪崩问题？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.613,
+      "retrieval_relevance_avg": 0.5642,
+      "qa_semantic_similarity": 0.6274,
+      "answer_grounding": 0.1657
+    },
+    {
+      "question": "系统高可用设计中，服务层如何避免单点故障？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7036,
+      "retrieval_relevance_avg": 0.6761,
+      "qa_semantic_similarity": 0.637,
+      "answer_grounding": 0.1391
+    },
+    {
+      "question": "服务层高可用中，限流熔断机制具体包括哪些功能？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7241,
+      "retrieval_relevance_avg": 0.632,
+      "qa_semantic_similarity": 0.7697,
+      "answer_grounding": 0.26
+    },
+    {
+      "question": "数据层高可用中，Redis采用了什么架构来确保缓存服务不中断？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7789,
+      "retrieval_relevance_avg": 0.7666,
+      "qa_semantic_similarity": 0.7881,
+      "answer_grounding": 0.1732
+    },
+    {
+      "question": "当核心服务出现故障时，服务降级预案会采取什么策略来减少对用户的影响？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6105,
+      "retrieval_relevance_avg": 0.5817,
+      "qa_semantic_similarity": 0.7051,
+      "answer_grounding": 0.0975
+    },
+    {
+      "question": "Redis采用了什么架构来确保缓存服务不中断？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7492,
+      "retrieval_relevance_avg": 0.7155,
+      "qa_semantic_similarity": 0.81,
+      "answer_grounding": 0.1405
+    },
+    {
+      "question": "系统如何实现网关层的高可用？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6977,
+      "retrieval_relevance_avg": 0.6754,
+      "qa_semantic_similarity": 0.7086,
+      "answer_grounding": 0.2212
+    },
+    {
+      "question": "高并发设计中，数据库负载均衡采用了哪些具体措施？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.682,
+      "retrieval_relevance_avg": 0.666,
+      "qa_semantic_similarity": 0.7195,
+      "answer_grounding": 0.1759
+    },
+    {
+      "question": "什么是数据库读写分离？它有什么作用？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.592,
+      "retrieval_relevance_avg": 0.5716,
+      "qa_semantic_similarity": 0.78,
+      "answer_grounding": 0.1125
+    },
+    {
+      "question": "系统启动时如何避免缓存穿透？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6711,
+      "retrieval_relevance_avg": 0.6044,
+      "qa_semantic_similarity": 0.7247,
+      "answer_grounding": 0.1049
+    },
+    {
+      "question": "消息队列在异步处理中用于哪些场景？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6418,
+      "retrieval_relevance_avg": 0.6049,
+      "qa_semantic_similarity": 0.8044,
+      "answer_grounding": 0.179
+    },
+    {
+      "question": "异步编程在Spring Boot中如何实现？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6257,
+      "retrieval_relevance_avg": 0.5742,
+      "qa_semantic_similarity": 0.767,
+      "answer_grounding": 0.1935
+    },
+    {
+      "question": "代码复用有哪些具体做法？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6139,
+      "retrieval_relevance_avg": 0.5955,
+      "qa_semantic_similarity": 0.6372,
+      "answer_grounding": 0.1812
+    },
+    {
+      "question": "代码开发规范中关于注释有什么要求？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6942,
+      "retrieval_relevance_avg": 0.6596,
+      "qa_semantic_similarity": 0.7031,
+      "answer_grounding": 0.2051
+    },
+    {
+      "question": "代码注释有哪些要求？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6997,
+      "retrieval_relevance_avg": 0.6509,
+      "qa_semantic_similarity": 0.704,
+      "answer_grounding": 0.2179
+    },
+    {
+      "question": "变量名和常量名的命名规范分别是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5947,
+      "retrieval_relevance_avg": 0.5493,
+      "qa_semantic_similarity": 0.6686,
+      "answer_grounding": 0.3147
+    },
+    {
+      "question": "如何提升代码质量？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6301,
+      "retrieval_relevance_avg": 0.6204,
+      "qa_semantic_similarity": 0.6852,
+      "answer_grounding": 0.2975
+    },
+    {
+      "question": "在Java开发中，如何避免硬编码？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6985,
+      "retrieval_relevance_avg": 0.5942,
+      "qa_semantic_similarity": 0.6447,
+      "answer_grounding": 0.3218
+    },
+    {
+      "question": "异常处理有哪些具体要求？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6651,
+      "retrieval_relevance_avg": 0.5998,
+      "qa_semantic_similarity": 0.6898,
+      "answer_grounding": 0.3742
+    },
+    {
+      "question": "如何提升代码的可读性和维护性？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6367,
+      "retrieval_relevance_avg": 0.6295,
+      "qa_semantic_similarity": 0.7399,
+      "answer_grounding": 0.2095
+    },
+    {
+      "question": "这个项目结构是按什么方式组织的？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.579,
+      "retrieval_relevance_avg": 0.5645,
+      "qa_semantic_similarity": 0.7881,
+      "answer_grounding": 0.0287
+    },
+    {
+      "question": "在项目结构中，controller层的主要作用是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5929,
+      "retrieval_relevance_avg": 0.5733,
+      "qa_semantic_similarity": 0.6074,
+      "answer_grounding": 0.038
+    },
+    {
+      "question": "model目录下包含了哪些子目录？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5015,
+      "retrieval_relevance_avg": 0.4791,
+      "qa_semantic_similarity": 0.5243,
+      "answer_grounding": 0.125
+    },
+    {
+      "question": "微服务启动类的命名规则是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6882,
+      "retrieval_relevance_avg": 0.6504,
+      "qa_semantic_similarity": 0.745,
+      "answer_grounding": 0.2587
+    },
+    {
+      "question": "Controller的接口路径应该采用什么风格？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.61,
+      "retrieval_relevance_avg": 0.5818,
+      "qa_semantic_similarity": 0.5847,
+      "answer_grounding": 0.2383
+    },
+    {
+      "question": "在Controller中如何进行参数校验？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6534,
+      "retrieval_relevance_avg": 0.5812,
+      "qa_semantic_similarity": 0.7094,
+      "answer_grounding": 0.2759
+    },
+    {
+      "question": "在参数校验中，应该使用什么注解来避免在Controller中手动校验？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.634,
+      "retrieval_relevance_avg": 0.5769,
+      "qa_semantic_similarity": 0.6087,
+      "answer_grounding": 0.1411
+    },
+    {
+      "question": "统一的响应格式包含哪些字段？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5824,
+      "retrieval_relevance_avg": 0.5548,
+      "qa_semantic_similarity": 0.6587,
+      "answer_grounding": 0.0819
+    },
+    {
+      "question": "服务层的接口和实现类分别如何命名？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6834,
+      "retrieval_relevance_avg": 0.6542,
+      "qa_semantic_similarity": 0.7779,
+      "answer_grounding": 0.2021
+    },
+    {
+      "question": "服务实现类的命名规则是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6227,
+      "retrieval_relevance_avg": 0.6056,
+      "qa_semantic_similarity": 0.7489,
+      "answer_grounding": 0.1636
+    },
+    {
+      "question": "在数据访问层中，如何避免SQL注入？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6579,
+      "retrieval_relevance_avg": 0.6156,
+      "qa_semantic_similarity": 0.7656,
+      "answer_grounding": 0.1426
+    },
+    {
+      "question": "服务层如何处理复杂业务逻辑？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6533,
+      "retrieval_relevance_avg": 0.6406,
+      "qa_semantic_similarity": 0.6905,
+      "answer_grounding": 0.0833
+    },
+    {
+      "question": "如何防止SQL注入攻击？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6146,
+      "retrieval_relevance_avg": 0.5908,
+      "qa_semantic_similarity": 0.7861,
+      "answer_grounding": 0.1426
+    },
+    {
+      "question": "实体类（Entity）需要添加哪些注解？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6348,
+      "retrieval_relevance_avg": 0.5456,
+      "qa_semantic_similarity": 0.7886,
+      "answer_grounding": 0.1527
+    },
+    {
+      "question": "视图对象（VO）的主要作用是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.4962,
+      "retrieval_relevance_avg": 0.4483,
+      "qa_semantic_similarity": 0.6664,
+      "answer_grounding": 0.1739
+    },
+    {
+      "question": "Vue3前端开发规范中，项目结构里用于存放接口请求的文件夹叫什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7021,
+      "retrieval_relevance_avg": 0.6508,
+      "qa_semantic_similarity": 0.6463,
+      "answer_grounding": 0.0367
+    },
+    {
+      "question": "在Vue3编码规范中，组件命名应该采用什么命名法？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6524,
+      "retrieval_relevance_avg": 0.5874,
+      "qa_semantic_similarity": 0.5637,
+      "answer_grounding": 0.1614
+    },
+    {
+      "question": "Vue3项目结构中，状态管理使用的是哪个库？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6333,
+      "retrieval_relevance_avg": 0.5382,
+      "qa_semantic_similarity": 0.604,
+      "answer_grounding": 0.0626
+    },
+    {
+      "question": "在命名规范中，组件名应该采用哪种命名法？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6531,
+      "retrieval_relevance_avg": 0.5881,
+      "qa_semantic_similarity": 0.7265,
+      "answer_grounding": 0.1467
+    },
+    {
+      "question": "模板规范中，为什么建议避免使用v-html指令？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5721,
+      "retrieval_relevance_avg": 0.5414,
+      "qa_semantic_similarity": 0.7506,
+      "answer_grounding": 0.0581
+    },
+    {
+      "question": "样式规范中，如何避免样式污染？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5935,
+      "retrieval_relevance_avg": 0.5563,
+      "qa_semantic_similarity": 0.7082,
+      "answer_grounding": 0.063
+    },
+    {
+      "question": "在样式规范中，如何避免样式污染？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5934,
+      "retrieval_relevance_avg": 0.5595,
+      "qa_semantic_similarity": 0.6059,
+      "answer_grounding": 0.1435
+    },
+    {
+      "question": "脚本规范中推荐使用哪些ES6+语法？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6261,
+      "retrieval_relevance_avg": 0.5489,
+      "qa_semantic_similarity": 0.5612,
+      "answer_grounding": 0.1192
+    },
+    {
+      "question": "接口请求时，如何处理异常情况？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7493,
+      "retrieval_relevance_avg": 0.655,
+      "qa_semantic_similarity": 0.6743,
+      "answer_grounding": 0.2798
+    },
+    {
+      "question": "在接口开发规范中，RESTful风格要求请求方法与业务操作如何对应？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7299,
+      "retrieval_relevance_avg": 0.6588,
+      "qa_semantic_similarity": 0.4947,
+      "answer_grounding": 0.1453
+    },
+    {
+      "question": "异常处理规范中，对接口请求异常和页面渲染异常有什么要求？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7569,
+      "retrieval_relevance_avg": 0.6612,
+      "qa_semantic_similarity": 0.5861,
+      "answer_grounding": 0.1379
+    },
+    {
+      "question": "接口设计原则中提到的‘可扩展性’具体指什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.608,
+      "retrieval_relevance_avg": 0.5545,
+      "qa_semantic_similarity": 0.6928,
+      "answer_grounding": 0.1652
+    },
+    {
+      "question": "公司的保密信息分为哪几个等级？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7121,
+      "retrieval_relevance_avg": 0.6786,
+      "qa_semantic_similarity": 0.7809,
+      "answer_grounding": 0.0802
+    },
+    {
+      "question": "员工可以随意将公司内部公告截图发给外部人员吗？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5881,
+      "retrieval_relevance_avg": 0.5758,
+      "qa_semantic_similarity": 0.7503,
+      "answer_grounding": 0.0674
+    },
+    {
+      "question": "最小权限原则是什么意思？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5285,
+      "retrieval_relevance_avg": 0.4911,
+      "qa_semantic_similarity": 0.5729,
+      "answer_grounding": 0.085
+    },
+    {
+      "question": "什么是涉密信息？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6071,
+      "retrieval_relevance_avg": 0.5943,
+      "qa_semantic_similarity": 0.7113,
+      "answer_grounding": 0.2493
+    },
+    {
+      "question": "禁止行为中，哪些行为涉及传输涉密信息？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6286,
+      "retrieval_relevance_avg": 0.5816,
+      "qa_semantic_similarity": 0.6902,
+      "answer_grounding": 0.2113
+    },
+    {
+      "question": "对于电脑和手机等涉密载体，有哪些具体管理要求？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7305,
+      "retrieval_relevance_avg": 0.7104,
+      "qa_semantic_similarity": 0.659,
+      "answer_grounding": 0.265
+    },
+    {
+      "question": "公司对Wi-Fi、U盘/硬盘和云文档有哪些保密要求？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7318,
+      "retrieval_relevance_avg": 0.6828,
+      "qa_semantic_similarity": 0.7745,
+      "answer_grounding": 0.2392
+    },
+    {
+      "question": "涉密纸质文件在保管和销毁时有哪些规定？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6758,
+      "retrieval_relevance_avg": 0.6265,
+      "qa_semantic_similarity": 0.7826,
+      "answer_grounding": 0.2173
+    },
+    {
+      "question": "员工离职时需要完成哪些保密相关的交接和承诺？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7018,
+      "retrieval_relevance_avg": 0.6565,
+      "qa_semantic_similarity": 0.7366,
+      "answer_grounding": 0.3993
+    },
+    {
+      "question": "公司招聘时有哪些禁止歧视的规定？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6193,
+      "retrieval_relevance_avg": 0.6061,
+      "qa_semantic_similarity": 0.6604,
+      "answer_grounding": 0.0851
+    },
+    {
+      "question": "试用期的时长是如何根据劳动合同期限确定的？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.644,
+      "retrieval_relevance_avg": 0.629,
+      "qa_semantic_similarity": 0.7429,
+      "answer_grounding": 0.1248
+    },
+    {
+      "question": "转正考核的评分标准是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6707,
+      "retrieval_relevance_avg": 0.6238,
+      "qa_semantic_similarity": 0.8003,
+      "answer_grounding": 0.062
+    },
+    {
+      "question": "转正考核中，价值观和工作业绩的占比分别是多少？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.665,
+      "retrieval_relevance_avg": 0.6294,
+      "qa_semantic_similarity": 0.8019,
+      "answer_grounding": 0.0525
+    },
+    {
+      "question": "公司的薪酬结构包括哪些部分？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6815,
+      "retrieval_relevance_avg": 0.6455,
+      "qa_semantic_similarity": 0.7606,
+      "answer_grounding": 0.2213
+    },
+    {
+      "question": "绩效考核有哪些周期和方法？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6558,
+      "retrieval_relevance_avg": 0.5598,
+      "qa_semantic_similarity": 0.7888,
+      "answer_grounding": 0.1719
+    },
+    {
+      "question": "阿里巴巴的使命和愿景分别是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7295,
+      "retrieval_relevance_avg": 0.5533,
+      "qa_semantic_similarity": 0.7884,
+      "answer_grounding": 0.0963
+    },
+    {
+      "question": "阿里巴巴的“六脉神剑”价值观中，关于客户和员工的核心要求是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.765,
+      "retrieval_relevance_avg": 0.6914,
+      "qa_semantic_similarity": 0.5673,
+      "answer_grounding": 0.1597
+    },
+    {
+      "question": "阿里巴巴集团旗下包括哪些主要业务？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.667,
+      "retrieval_relevance_avg": 0.5536,
+      "qa_semantic_similarity": 0.7829,
+      "answer_grounding": 0.1373
+    },
+    {
+      "question": "价值观考核中，哪些项是20分的高分值？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6762,
+      "retrieval_relevance_avg": 0.5765,
+      "qa_semantic_similarity": 0.7571,
+      "answer_grounding": 0.0375
+    },
+    {
+      "question": "在商业行为准则中，关于利益冲突有哪些具体禁止行为？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5879,
+      "retrieval_relevance_avg": 0.5854,
+      "qa_semantic_similarity": 0.6197,
+      "answer_grounding": 0.097
+    },
+    {
+      "question": "价值观考核中‘拥抱变化’包含哪些具体评分点？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6053,
+      "retrieval_relevance_avg": 0.5452,
+      "qa_semantic_similarity": 0.6671,
+      "answer_grounding": 0.1155
+    },
+    {
+      "question": "员工需要申报哪些利益冲突？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7457,
+      "retrieval_relevance_avg": 0.6401,
+      "qa_semantic_similarity": 0.821,
+      "answer_grounding": 0.3322
+    },
+    {
+      "question": "保密义务的保密范围和禁止行为是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6694,
+      "retrieval_relevance_avg": 0.6228,
+      "qa_semantic_similarity": 0.7042,
+      "answer_grounding": 0.2934
+    },
+    {
+      "question": "关于公平竞争和知识产权，公司有哪些规定？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6656,
+      "retrieval_relevance_avg": 0.6269,
+      "qa_semantic_similarity": 0.7688,
+      "answer_grounding": 0.3285
+    },
+    {
+      "question": "公司招聘时有哪些用工原则？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6827,
+      "retrieval_relevance_avg": 0.6425,
+      "qa_semantic_similarity": 0.6315,
+      "answer_grounding": 0.0781
+    },
+    {
+      "question": "硕士及以上学历的试用期是多久？试用期工资如何计算？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6563,
+      "retrieval_relevance_avg": 0.6094,
+      "qa_semantic_similarity": 0.7886,
+      "answer_grounding": 0.066
+    },
+    {
+      "question": "如果员工迟到超过30分钟，会如何处理？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.649,
+      "retrieval_relevance_avg": 0.6195,
+      "qa_semantic_similarity": 0.6738,
+      "answer_grounding": 0.0629
+    },
+    {
+      "question": "公司带薪年假的天数是如何根据工龄计算的？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.7096,
+      "retrieval_relevance_avg": 0.6629,
+      "qa_semantic_similarity": 0.6451,
+      "answer_grounding": 0.1538
+    },
+    {
+      "question": "如果员工请病假超过3天，会怎么处理？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6689,
+      "retrieval_relevance_avg": 0.6227,
+      "qa_semantic_similarity": 0.73,
+      "answer_grounding": 0.1141
+    },
+    {
+      "question": "绩效考核中，如果连续两次被评为D等级会有什么后果？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.5313,
+      "retrieval_relevance_avg": 0.5239,
+      "qa_semantic_similarity": 0.8111,
+      "answer_grounding": 0.045
+    },
+    {
+      "question": "员工主动离职需要提前多久提交申请？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6925,
+      "retrieval_relevance_avg": 0.6584,
+      "qa_semantic_similarity": 0.7667,
+      "answer_grounding": 0.0871
+    },
+    {
+      "question": "公司对核心岗位离职员工的竞业限制有哪些规定？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6654,
+      "retrieval_relevance_avg": 0.6451,
+      "qa_semantic_similarity": 0.7313,
+      "answer_grounding": 0.1811
+    },
+    {
+      "question": "差旅报销中一线城市的住宿标准是多少？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.512,
+      "retrieval_relevance_avg": 0.4955,
+      "qa_semantic_similarity": 0.7652,
+      "answer_grounding": 0.0401
+    },
+    {
+      "question": "公司对迟到早退这类违纪行为会怎么处理？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6518,
+      "retrieval_relevance_avg": 0.6444,
+      "qa_semantic_similarity": 0.805,
+      "answer_grounding": 0.1083
+    },
+    {
+      "question": "如果发现同事有收受贿赂的行为，可以通过什么渠道举报？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6147,
+      "retrieval_relevance_avg": 0.5671,
+      "qa_semantic_similarity": 0.6219,
+      "answer_grounding": 0.2914
+    },
+    {
+      "question": "虚报费用属于哪一级违纪？会有什么处罚？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6637,
+      "retrieval_relevance_avg": 0.5623,
+      "qa_semantic_similarity": 0.8167,
+      "answer_grounding": 0.1423
+    },
+    {
+      "question": "字节跳动的使命和愿景分别是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6643,
+      "retrieval_relevance_avg": 0.5322,
+      "qa_semantic_similarity": 0.6203,
+      "answer_grounding": 0.0897
+    },
+    {
+      "question": "字节跳动的弹性工时制度中，核心在岗时段是什么？如果迟到超过30分钟会怎样？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6363,
+      "retrieval_relevance_avg": 0.6309,
+      "qa_semantic_similarity": 0.7757,
+      "answer_grounding": 0.0954
+    },
+    {
+      "question": "字节跳动员工手册中，关于办公纪律有哪些禁止行为？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6734,
+      "retrieval_relevance_avg": 0.6204,
+      "qa_semantic_similarity": 0.6887,
+      "answer_grounding": 0.2158
+    },
+    {
+      "question": "公司对员工在办公区的行为有哪些禁止规定？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6423,
+      "retrieval_relevance_avg": 0.6053,
+      "qa_semantic_similarity": 0.7316,
+      "answer_grounding": 0.1469
+    },
+    {
+      "question": "员工的薪酬由哪些部分组成？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6419,
+      "retrieval_relevance_avg": 0.6109,
+      "qa_semantic_similarity": 0.805,
+      "answer_grounding": 0.0711
+    },
+    {
+      "question": "核心岗位员工离职后，竞业限制的具体要求是什么？",
+      "chunks_count": 3,
+      "retrieval_relevance_max": 0.6334,
+      "retrieval_relevance_avg": 0.6106,
+      "qa_semantic_similarity": 0.7566,
+      "answer_grounding": 0.1231
+    }
+  ]
+}

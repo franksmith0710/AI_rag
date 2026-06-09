@@ -5,7 +5,6 @@
 """
 import os
 import asyncio
-import logging
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
@@ -252,21 +251,31 @@ def extract_text_from_file(file_path: str, file_type: str) -> str:
             OCR_THRESHOLD = 50
             ocr_pages = 0
 
-            for i, page in enumerate(reader.pages):
-                page_text = page.extract_text() or ""
-                if len(page_text.strip()) < OCR_THRESHOLD:
-                    pix = pdf_doc[i].get_pixmap(dpi=200)
-                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                        pix.save(tmp.name)
-                        ocr_text = ocr.extract_text(tmp.name)
-                        os.unlink(tmp.name)
-                    if ocr_text.strip():
-                        text += ocr_text + "\n"
-                        ocr_pages += 1
-                else:
-                    text += page_text + "\n"
+            try:
+                for i, page in enumerate(reader.pages):
+                    page_text = page.extract_text() or ""
+                    if len(page_text.strip()) < OCR_THRESHOLD:
+                        pix = pdf_doc[i].get_pixmap(dpi=200)
+                        tmp_path = None
+                        try:
+                            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                                pix.save(tmp.name)
+                                tmp_path = tmp.name
+                            ocr_text = ocr.extract_text(tmp_path)
+                        finally:
+                            if tmp_path:
+                                try:
+                                    os.unlink(tmp_path)
+                                except OSError:
+                                    pass
+                        if ocr_text.strip():
+                            text += ocr_text + "\n"
+                            ocr_pages += 1
+                    else:
+                        text += page_text + "\n"
+            finally:
+                pdf_doc.close()
 
-            pdf_doc.close()
             logger.info(f"PDF 提取完成: 总页数={len(reader.pages)}, OCR页数={ocr_pages}, 文本长度={len(text)}")
             return text.strip()
 

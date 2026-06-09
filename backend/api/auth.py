@@ -52,7 +52,13 @@ async def get_current_user(
         )
 
     # 查询用户
-    user = await auth_service.get_user_by_id(db, int(user_id))
+    try:
+        user = await auth_service.get_user_by_id(db, int(user_id))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的token"
+        )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

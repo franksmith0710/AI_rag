@@ -7,7 +7,6 @@ import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from starlette.responses import StreamingResponse
-from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,14 +111,9 @@ async def chat(
 
                     if session.title in (None, "新会话"):
                         try:
+                            from core.llm_factory import create_llm
                             prompt = f"根据用户问题生成一个简短的会话标题（不超过15个字）：\n{chat_data.message}"
-                            llm = ChatOpenAI(
-                                model=settings.llm_rewrite_model or "deepseek-chat",
-                                api_key=settings.deepseek_api_key,
-                                base_url=settings.deepseek_base_url,
-                                temperature=0.1,
-                                max_tokens=30,
-                            )
+                            llm = create_llm(temperature=0.1, max_tokens=30)
                             title = (await llm.ainvoke(prompt)).content.strip()
                             if title:
                                 session.title = title

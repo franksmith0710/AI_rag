@@ -301,7 +301,7 @@ backend:
 | `backend/services/session_service.py` | 会话服务 + Redis 缓存 (版本一致性) |
 | `frontend/src/views/Chat.vue` | 聊天页面组件 (SSE 解析 + Markdown 渲染) |
 | `frontend/src/views/Document.vue` | 文档管理页面 |
-| `backend/scripts/evaluate.py` | RAGAS 评估脚本 (SemanticSimilarity / RougeScore / CHRFScore) |
+| `backend/scripts/evaluate.py` | 评估脚本 (检索相关性 + QA语义相似度 + 答案接地性) |
 | `backend/scripts/generate_eval_data.py` | 测试数据生成 (从 DB chunks 自动生成 QA 对) |
 | `backend/scripts/auto_evaluate.py` | 一键自动评估 (生成数据 + 运行评估) |
 
@@ -336,7 +336,7 @@ AI_rag/
 │   │   └── common.py        # 通用工具
 │   ├── scripts/               # 脚本工具
 │   │   ├── evaluate.py      # 评估脚本
-│   │   ├── generate_test_data.py # 测试数据生成
+│   │   ├── generate_eval_data.py # 评估数据生成
 │   │   └── test_data.json   # 测试数据集
 │   ├── main.py               # 应用入口
 │   ├── requirements.txt      # Python 依赖
@@ -424,10 +424,10 @@ python scripts/generate_eval_data.py
 python scripts/evaluate.py
 ```
 
-评估指标 (RAGAS，纯本地，无需 LLM API):
-- **Semantic Similarity**: 答案与 ground_truth 的语义相似度 (BGE-M3 embedding cosine)
-- **Rouge Score**: N-gram 召回率 (ROUGE-L)
-- **CHRF Score**: 字符级 F-score
+评估指标 (纯本地，不依赖 RAGAS):
+- **检索相关性**: 问题与检索到的 chunk 的余弦相似度 (BGE-M3 embedding cosine)，取 max/avg
+- **QA 语义相似度**: 问题与 ground_truth 的语义相似度 (BGE-M3 embedding cosine)
+- **答案接地性**: ground_truth 与检索结果的最长公共子序列 F1 (ROUGE-L)
 
 结果保存在 `backend/scripts/eval_report.json`。
 

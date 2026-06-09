@@ -8,23 +8,6 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
-# ==================== 租户相关 ====================
-
-class TenantCreate(BaseModel):
-    """创建租户请求"""
-    name: str  # 租户名称
-
-
-class TenantResponse(BaseModel):
-    """租户响应"""
-    id: int
-    name: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True  # 允许从 ORM 对象创建
-
-
 # ==================== 用户相关 ====================
 
 class UserCreate(BaseModel):
@@ -61,15 +44,6 @@ class TokenResponse(BaseModel):
 
 # ==================== 文档相关 ====================
 
-class DocumentCreate(BaseModel):
-    """创建文档请求 (内部使用)"""
-    title: str
-    file_name: str
-    file_size: int
-    file_type: str
-    file_path: str
-
-
 class DocumentResponse(BaseModel):
     """文档响应"""
     id: int
@@ -91,12 +65,6 @@ class DocumentListResponse(BaseModel):
     """文档列表响应"""
     total: int  # 总数
     items: List[DocumentResponse]  # 文档列表
-
-
-class DocumentStatusUpdate(BaseModel):
-    """更新文档状态请求"""
-    status: str
-    chunk_count: Optional[int] = 0
 
 
 class DocumentChunkResponse(BaseModel):
@@ -169,12 +137,6 @@ class ChatResponse(BaseModel):
     session_id: int
     message: str  # AI 回答
     sources: Optional[List[Dict[str, Any]]]  # 参考文档
-
-
-class StreamChatRequest(BaseModel):
-    """流式聊天请求 (预留)"""
-    session_id: int
-    message: str
 
 
 # ==================== 批量上传相关 ====================

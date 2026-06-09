@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import sys
 import uvicorn
 
 from core.config import get_settings
@@ -36,7 +37,8 @@ async def lifespan(app: FastAPI):
 
     # JWT 密钥安全检查
     if settings.jwt_secret_key == "your-secret-key-change-in-production":
-        logger.warning("⚠️  JWT 密钥使用默认值，生产环境请在 .env 中设置 JWT_SECRET_KEY")
+        logger.error("❌  JWT 密钥使用默认值，请先修改 JWT_SECRET_KEY")
+        sys.exit(1)
 
     # 增大线程池，提升并行处理能力
     loop = asyncio.get_event_loop()

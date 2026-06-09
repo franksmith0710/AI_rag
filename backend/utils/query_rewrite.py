@@ -74,20 +74,13 @@ async def rewrite_query(query: str, conversation_history: List[Dict] = None) -> 
 """
 
     try:
-        from langchain_openai import ChatOpenAI
-        from core.config import get_settings
-        settings = get_settings()
-        llm = ChatOpenAI(
-            model=settings.llm_rewrite_model,
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            temperature=0.1,
-            max_tokens=128,
-            timeout=15
-        )
+        from core.llm_factory import create_llm
+        llm = create_llm(temperature=0.1, max_tokens=128, timeout=15)
         rewritten = (await llm.ainvoke(prompt)).content.strip()
         return rewritten if rewritten else query
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"query_rewrite: 改写失败 - {e}")
         return query
 
 
@@ -134,17 +127,8 @@ async def expand_query_variants(
 4. 每行一个问句，不要编号，不要多余内容。"""
 
     try:
-        from langchain_openai import ChatOpenAI
-        from core.config import get_settings
-        settings = get_settings()
-        llm = ChatOpenAI(
-            model=settings.llm_rewrite_model,
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            temperature=0.1,
-            max_tokens=256,
-            timeout=15
-        )
+        from core.llm_factory import create_llm
+        llm = create_llm(temperature=0.1, max_tokens=256, timeout=15)
         text = (await llm.ainvoke(prompt)).content.strip()
         variants = [line.strip() for line in text.split("\n") if line.strip()]
         # 去重、去空
@@ -157,5 +141,7 @@ async def expand_query_variants(
         # 用足 extra 个（不够就取全部），前面放原始 query
         result = [query] + deduped[:extra]
         return result
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"expand_query_variants: 扩展失败 - {e}")
         return [query]
