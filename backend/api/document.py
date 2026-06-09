@@ -84,13 +84,48 @@ async def upload_document(
     # 确定租户 ID
     tenant_id = 0 if is_global else current_user.tenant_id
 
-    # 生成唯一文件名，防止冲突
+    os.makedirs(settings.upload_dir, exist_ok=True)
+
+    # 检查是否已有同名文档（同租户下），有则覆盖
+    from sqlalchemy import select
+    from models.db_models import Document
+
+    existing = (await db.execute(
+        select(Document).where(
+            Document.tenant_id == tenant_id,
+            Document.file_name == file.filename,
+        )
+    )).scalar_one_or_none()
+
+    if existing:
+        # 覆盖已有文档
+        doc = existing
+        old_path = doc.file_path
+        file_id = str(uuid.uuid4())
+        file_name = f"{file_id}{file_ext}"
+        new_path = os.path.join(settings.upload_dir, file_name)
+        async with aiofiles.open(new_path, "wb") as f:
+            await f.write(content)
+        # 删除旧文件（路径不同）
+        if old_path != new_path and os.path.exists(old_path):
+            try:
+                os.unlink(old_path)
+            except OSError:
+                pass
+        doc.file_path = new_path
+        doc.file_size = file_size
+        doc.status = "pending"
+        doc.chunk_count = 0
+        doc.content_hash = ""
+        await db.flush()
+        await db.commit()
+        logger.info(f"上传覆盖: document_id={doc.id}, file={file.filename}")
+        return DocumentResponse.model_validate(doc)
+
+    # 生成唯一文件名
     file_id = str(uuid.uuid4())
     file_name = f"{file_id}{file_ext}"
     file_path = os.path.join(settings.upload_dir, file_name)
-
-    # 确保目录存在
-    os.makedirs(settings.upload_dir, exist_ok=True)
 
     # 保存文件到本地
     async with aiofiles.open(file_path, "wb") as f:
@@ -179,24 +214,49 @@ async def upload_batch(
     # 逐个保存文件并创建 DB 记录
     for f, content, ext in file_contents:
         try:
+            # 检查是否已有同名文档
+            from sqlalchemy import select
+            from models.db_models import Document
+
+            existing = (await db.execute(
+                select(Document).where(
+                    Document.tenant_id == tenant_id,
+                    Document.file_name == f.filename,
+                )
+            )).scalar_one_or_none()
+
             file_id = str(uuid.uuid4())
             file_name = f"{file_id}{ext}"
             file_path = os.path.join(settings.upload_dir, file_name)
-
             async with aiofiles.open(file_path, "wb") as out:
                 await out.write(content)
 
-            doc = await doc_service.create_document(
-                db=db,
-                tenant_id=tenant_id,
-                title=f.filename.replace(ext, ""),
-                file_name=f.filename,
-                file_path=file_path,
-                file_size=len(content),
-                file_type=ext[1:],
-                user_id=current_user.id
-            )
-            await db.flush()
+            if existing:
+                old_path = existing.file_path
+                if old_path != file_path and os.path.exists(old_path):
+                    try:
+                        os.unlink(old_path)
+                    except OSError:
+                        pass
+                existing.file_path = file_path
+                existing.file_size = len(content)
+                existing.status = "pending"
+                existing.chunk_count = 0
+                existing.content_hash = ""
+                await db.flush()
+                doc = existing
+            else:
+                doc = await doc_service.create_document(
+                    db=db,
+                    tenant_id=tenant_id,
+                    title=f.filename.replace(ext, ""),
+                    file_name=f.filename,
+                    file_path=file_path,
+                    file_size=len(content),
+                    file_type=ext[1:],
+                    user_id=current_user.id
+                )
+                await db.flush()
 
             results.append(BatchUploadResult(file_name=f.filename, success=True, document_id=doc.id))
         except Exception as e:
@@ -249,6 +309,21 @@ async def process_document(
     # 已经处理过则跳过（除非强制重处理）
     if doc.status == "completed" and not force:
         return ApiResponse.success(message="文档已处理完成")
+
+    # 强制重处理：清除旧向量数据和 chunks
+    if force and doc.status == "completed":
+        from sqlalchemy import delete
+        from models.db_models import DocumentChunk
+        from core.chroma_conn import delete_documents
+
+        await asyncio.to_thread(
+            delete_documents, tenant_id=doc.tenant_id,
+            where={"document_id": str(document_id)}
+        )
+        await db.execute(
+            delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
+        )
+        logger.info(f"文档 {document_id}: 已清除旧向量和 chunks，准备重新处理")
 
     logger.info(f"开始处理文档 document_id={document_id}, file={doc.file_name}")
     try:

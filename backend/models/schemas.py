@@ -54,6 +54,7 @@ class DocumentResponse(BaseModel):
     file_type: Optional[str]
     status: str  # pending / completed
     chunk_count: int
+    content_hash: str = ""
     created_by: Optional[int]
     created_at: datetime
 

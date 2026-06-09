@@ -66,6 +66,7 @@ class Document(Base):
     file_type = Column(String(50))  # 文件类型 (pdf, docx, txt, jpg, png, ...)
     status = Column(String(20), default="pending")  # 处理状态: pending(待处理) / completed(已完成)
     chunk_count = Column(Integer, default=0)  # 分块数量
+    content_hash = Column(String(64), default="")  # 文本内容的 md5 哈希，用于去重
     created_by = Column(Integer, ForeignKey("users.id"))  # 上传用户
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

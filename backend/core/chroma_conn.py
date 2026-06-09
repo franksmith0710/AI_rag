@@ -113,11 +113,11 @@ def _get_client(tenant_id: int) -> chromadb.PersistentClient:
         )
         try:
             admin.create_tenant(name="default_tenant")
-        except ValueError:
+        except Exception:
             pass
         try:
             admin.create_database(name="default_database", tenant="default_tenant")
-        except ValueError:
+        except Exception:
             pass
 
         _chroma_clients[tenant_id] = chromadb.PersistentClient(

@@ -54,8 +54,10 @@ async def lifespan(app: FastAPI):
     logger.info("Jieba 预热完成")
 
     logger.info("预热 GPU 模型...")
-    _get_reranker()
-    get_embedding_model()
+    reranker_model, _ = _get_reranker()
+    embed_model = get_embedding_model()
+    logger.info(f"Reranker providers: {reranker_model.get_providers()}")
+    logger.info(f"Embedding session providers: {embed_model._session.get_providers()}")
     logger.info("模型预热完成")
 
     yield

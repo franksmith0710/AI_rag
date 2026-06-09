@@ -88,11 +88,36 @@ async def process_document(
         await db.flush()
         return False
 
-    # 1. 文本分块
+    # 1. 计算内容哈希，检测重复
+    import hashlib
+    content_hash = hashlib.md5(text_content.strip().encode()).hexdigest()
+    old_doc = (await db.execute(
+        select(Document).where(
+            Document.tenant_id == tenant_id,
+            Document.content_hash == content_hash,
+            Document.id != document_id,
+        )
+    )).scalar_one_or_none()
+    if old_doc:
+        logger.info(f"检测到重复文档：新 doc_id={document_id}，旧 doc_id={old_doc.id}，处理完成后清理旧数据")
+
+    # 2. 更新当前文档的 content_hash
+    current_doc = (await db.execute(select(Document).where(Document.id == document_id))).scalar_one()
+    current_doc.content_hash = content_hash
+    await db.flush()
+
+    # 3. 删除该文档已有的 DB chunks（覆盖/重处理场景，防止唯一约束冲突）
+    from sqlalchemy import delete as sql_delete
+    await db.execute(
+        sql_delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
+    )
+    await db.flush()
+
+    # 4. 文本分块
     chunks = split_text(text_content)
     logger.info(f"分块完成: {len(chunks)} 个 chunks")
 
-    # 2. 先存储到向量库 (Chroma)，失败则直接返回
+    # 5. 先存储到向量库 (Chroma)，失败则直接返回
     try:
         metadatas = [
             {
@@ -103,11 +128,13 @@ async def process_document(
             for idx in range(len(chunks))
         ]
         logger.info(f"写入向量库: {len(chunks)} 条, tenant={tenant_id}")
+        chunk_ids = [f"{document_id}_{idx}" for idx in range(len(chunks))]
         await asyncio.to_thread(
             add_documents,
             tenant_id=tenant_id,
             texts=chunks,
-            metadatas=metadatas
+            metadatas=metadatas,
+            ids=chunk_ids
         )
         logger.info(f"向量库写入成功")
     except Exception as e:
@@ -118,7 +145,7 @@ async def process_document(
         await db.flush()
         raise RuntimeError(f"向量库存储失败: {type(e).__name__} - {err_msg}")
 
-    # 3. 向量存储成功后，存储分块到数据库
+    # 6. 向量存储成功后，存储分块到数据库
     for idx, chunk_text in enumerate(chunks):
         chunk = DocumentChunk(
             document_id=document_id,
@@ -127,12 +154,36 @@ async def process_document(
         )
         db.add(chunk)
 
-    # 4. 更新文档状态
+    # 7. 更新文档状态
     doc_result = await db.execute(select(Document).where(Document.id == document_id))
     doc = doc_result.scalar_one()
     doc.status = "completed"
     doc.chunk_count = len(chunks)
     await db.flush()
+
+    # 8. 处理成功后，清理重复的旧文档
+    if old_doc:
+        logger.info(f"文档 {document_id} 处理完成，清理重复的旧文档 old_id={old_doc.id}")
+        try:
+            await asyncio.to_thread(
+                delete_documents, tenant_id=tenant_id,
+                where={"document_id": str(old_doc.id)}
+            )
+        except Exception as e:
+            logger.warning(f"清理旧文档向量失败: {e}")
+        from sqlalchemy import delete as sql_delete
+        await db.execute(
+            sql_delete(DocumentChunk).where(DocumentChunk.document_id == old_doc.id)
+        )
+        if old_doc.file_path and os.path.exists(old_doc.file_path):
+            try:
+                os.remove(old_doc.file_path)
+            except OSError as e:
+                logger.warning(f"删除旧文件失败: {e}")
+        await db.delete(old_doc)
+        await db.flush()
+        from services.rag_service import invalidate_bm25_cache
+        invalidate_bm25_cache(tenant_id)
 
     logger.info(f"文档 {document_id} 处理完成: {len(chunks)} 个 chunks")
     return True

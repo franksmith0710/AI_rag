@@ -17,7 +17,7 @@ from rank_bm25 import BM25Okapi
 from models.db_models import DocumentChunk, Session as SessionModel, Message, Document
 from core.config import get_settings
 from core.logging_config import setup_logging
-from utils.query_rewrite import is_greeting_query, rewrite_query, expand_query_variants
+from utils.query_rewrite import is_greeting_query, rewrite_query, rewrite_and_expand
 from services import session_service
 
 logger = setup_logging("rag_service")
@@ -537,17 +537,10 @@ async def chat_with_rag(
 
     original_query = query
 
-    # ===================== 执行改写（真正用history） =====================
-    rewritten_query = await rewrite_query(original_query, history_for_rewrite)
-    if rewritten_query != original_query:
-        logger.info(f"chat_with_rag: Query 改写 '{original_query}' -> '{rewritten_query}'")
-    else:
-        logger.info(f"chat_with_rag: Query 无需改写")
-
-    # ===================== 多语义变体扩展 & 多路检索 =====================
+    # ===================== Query 改写 + 变体扩展（合并为一次LLM调用） =====================
     if settings.query_variant_enabled and settings.query_variant_count > 1:
-        variants = await expand_query_variants(rewritten_query, history_for_rewrite, settings.query_variant_count)
-        logger.info(f"chat_with_rag: 生成 {len(variants)} 个检索变体: {variants}")
+        rewritten_query, variants = await rewrite_and_expand(original_query, history_for_rewrite, settings.query_variant_count)
+        logger.info(f"chat_with_rag: 改写 '{original_query}' -> '{rewritten_query}', {len(variants)} 个变体: {variants}")
         per_variant_top_k = HYBRID_SEARCH_TOP_K // len(variants) + 2
         tasks = [hybrid_search(v, tenant_id, db, top_k=per_variant_top_k) for v in variants]
         all_results_lists = await asyncio.gather(*tasks)
@@ -560,13 +553,19 @@ async def chat_with_rag(
                     seen[key] = r
         merged = sorted(seen.values(), key=lambda x: x["rrf_score"], reverse=True)
         search_results = merged[:HYBRID_SEARCH_TOP_K * 2]
-        search_query = rewritten_query
         logger.info(f"chat_with_rag: 多路检索完成, 合并后 {len(search_results)} 条结果")
     else:
+        rewritten_query = await rewrite_query(original_query, history_for_rewrite)
+        if rewritten_query != original_query:
+            logger.info(f"chat_with_rag: Query 改写 '{original_query}' -> '{rewritten_query}'")
+        else:
+            logger.info(f"chat_with_rag: Query 无需改写")
+        variants = [rewritten_query]
         logger.info(f"chat_with_rag: 开始检索 query={rewritten_query}")
         search_results = await hybrid_search(rewritten_query, tenant_id, db, top_k=HYBRID_SEARCH_TOP_K)
-        search_query = rewritten_query
         logger.info(f"chat_with_rag: 检索完成, 找到 {len(search_results)} 条结果")
+
+    search_query = rewritten_query
 
     # ===================== 邻居扩展 =====================
     search_results = await _expand_neighbors(search_results, db)

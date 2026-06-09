@@ -27,8 +27,13 @@ def _get_reranker():
             if _reranker_model is None:
                 logger.info(f"加载 ONNX Reranker 模型: {settings.reranker_onnx_path}")
                 _reranker_tokenizer = AutoTokenizer.from_pretrained(settings.reranker_model_path)
+                opts = onnxruntime.SessionOptions()
+                opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+                opts.intra_op_num_threads = 4
+                opts.inter_op_num_threads = 2
                 _reranker_model = onnxruntime.InferenceSession(
                     settings.reranker_onnx_path,
+                    sess_options=opts,
                     providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
                 )
                 logger.info(f"Reranker ONNX 模型加载完成, providers={_reranker_model.get_providers()}")
