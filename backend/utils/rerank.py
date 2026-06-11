@@ -1,12 +1,13 @@
 """
 重排序模块
 使用 ONNX Runtime 加载本地 BAAI/bge-reranker-v2-m3 ONNX 模型
-支持 CUDA 加速
+支持 CUDA 加速，推理后自动释放 GPU 显存
 """
 import logging
 from typing import List, Tuple
 import onnxruntime
 import threading
+import torch
 from transformers import AutoTokenizer
 from core.config import get_settings
 from core.logging_config import setup_logging
@@ -29,13 +30,27 @@ def _get_reranker():
                 _reranker_tokenizer = AutoTokenizer.from_pretrained(settings.reranker_model_path)
                 opts = onnxruntime.SessionOptions()
                 opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+                opts.log_severity_level = 3
                 opts.intra_op_num_threads = 4
                 opts.inter_op_num_threads = 2
-                _reranker_model = onnxruntime.InferenceSession(
-                    settings.reranker_onnx_path,
-                    sess_options=opts,
-                    providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-                )
+                try:
+                    _reranker_model = onnxruntime.InferenceSession(
+                        settings.reranker_onnx_path,
+                        sess_options=opts,
+                        providers=[
+                            ('CUDAExecutionProvider', {
+                                'arena_extend_strategy': 'kSameAsRequested',
+                                'gpu_mem_limit': 1024 * 1024 * 1024,
+                            }),
+                        ]
+                    )
+                except Exception:
+                    logger.warning("Reranker GPU 显存不足，回退到 CPU")
+                    _reranker_model = onnxruntime.InferenceSession(
+                        settings.reranker_onnx_path,
+                        sess_options=opts,
+                        providers=['CPUExecutionProvider']
+                    )
                 logger.info(f"Reranker ONNX 模型加载完成, providers={_reranker_model.get_providers()}")
     return _reranker_model, _reranker_tokenizer
 

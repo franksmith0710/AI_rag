@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM docker.m.daocloud.io/library/node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ COPY frontend/ .
 RUN npm run build
 
 
-FROM nginx:alpine
+FROM docker.m.daocloud.io/library/nginx:alpine
 
 RUN apk add --no-cache curl
 

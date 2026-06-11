@@ -29,22 +29,48 @@ class LocalEmbedding:
     _lock = threading.Lock()
 
     def __init__(self):
-        self._load_model()
+        self._ensure_model()
 
     def _load_model(self):
+        if LocalEmbedding._session is not None:
+            return
         logger.info(f"加载 ONNX Embedding 模型: {settings.embedding_onnx_path}")
         LocalEmbedding._tokenizer = AutoTokenizer.from_pretrained(settings.embedding_model_path)
-        LocalEmbedding._session = onnxruntime.InferenceSession(
-            settings.embedding_onnx_path,
-            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-        )
+        opts = onnxruntime.SessionOptions()
+        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        opts.log_severity_level = 3
+        try:
+            LocalEmbedding._session = onnxruntime.InferenceSession(
+                settings.embedding_onnx_path,
+                sess_options=opts,
+                providers=[
+                    ('CUDAExecutionProvider', {
+                        'arena_extend_strategy': 'kSameAsRequested',
+                        'gpu_mem_limit': 2048 * 1024 * 1024,
+                    }),
+                ]
+            )
+        except Exception:
+            logger.warning("GPU 显存不足 (CUDA context 仅 ~2MB)，回退到 CPU")
+            LocalEmbedding._session = onnxruntime.InferenceSession(
+                settings.embedding_onnx_path,
+                sess_options=opts,
+                providers=['CPUExecutionProvider']
+            )
         logger.info(f"Embedding ONNX 模型加载完成, providers={LocalEmbedding._session.get_providers()}")
+
+    def _ensure_model(self):
+        if LocalEmbedding._session is None:
+            with LocalEmbedding._lock:
+                if LocalEmbedding._session is None:
+                    self._load_model()
 
     def embed_documents(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
         """嵌入文档（分批处理，节省显存）"""
         logger.info(f"embed_documents: 接收 {len(texts)} 个文本")
         if not texts:
             return []
+        self._ensure_model()
 
         all_embeddings = []
         try:
@@ -71,6 +97,7 @@ class LocalEmbedding:
 
     def embed_query(self, text: str) -> List[float]:
         logger.info(f"embed_query: 文本长度={len(text)}")
+        self._ensure_model()
         try:
             inputs = LocalEmbedding._tokenizer(text, return_tensors='np', max_length=512, truncation=True, padding=True)
             with LocalEmbedding._lock:

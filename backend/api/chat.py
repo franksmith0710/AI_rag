@@ -58,7 +58,7 @@ async def chat(
         role="user",
         content=chat_data.message
     )
-    await db.flush()
+    await db.commit()
 
     async def event_stream():
         full_answer = ""
@@ -108,6 +108,7 @@ async def chat(
                         content=full_answer,
                         sources=sources,
                     )
+                    await db.commit()
 
                     if session.title in (None, "新会话"):
                         try:

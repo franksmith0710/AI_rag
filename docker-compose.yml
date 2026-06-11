@@ -40,6 +40,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - ./backend/docker-entrypoint.sh:/docker-entrypoint.sh
+      - ./backend/api/chat.py:/app/api/chat.py
+      - ./backend/utils/rerank.py:/app/utils/rerank.py
+      - ./backend/core/chroma_conn.py:/app/core/chroma_conn.py
+      - ./backend/services/rag_service.py:/app/services/rag_service.py
+      - ./backend/main.py:/app/main.py
       - ./backend/uploads:/app/uploads
       - ./backend/vector_store:/app/vector_store
       - ./backend/logs:/app/logs
@@ -69,7 +75,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
-    restart: unless-stopped
+    # 重要: 不要用 unless-stopped 或 always.
+    # Windows Docker (WDDM) 的 CUDA context 仅 ~2MB, GPU 模型加载必然失败。
+    # CPU fallback 已实现，但 restart: unless-stopped 仍会不断重启导致日志爆炸。
+    # 手动运行: docker compose start/stop (不要 down/up, 不要 force-recreate)
+    restart: no
 
   frontend:
     build:

@@ -45,20 +45,10 @@ async def lifespan(app: FastAPI):
     loop.set_default_executor(ThreadPoolExecutor(max_workers=16))
     logger.info("线程池已扩大到 16 workers")
 
-    from utils.rerank import _get_reranker
-    from core.chroma_conn import get_embedding_model
-
     logger.info("预热 Jieba 分词器...")
     import jieba
     jieba.initialize()
     logger.info("Jieba 预热完成")
-
-    logger.info("预热 GPU 模型...")
-    reranker_model, _ = _get_reranker()
-    embed_model = get_embedding_model()
-    logger.info(f"Reranker providers: {reranker_model.get_providers()}")
-    logger.info(f"Embedding session providers: {embed_model._session.get_providers()}")
-    logger.info("模型预热完成")
 
     yield
 
